@@ -8,6 +8,6 @@
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <maven.compiler.release>24</maven.compiler.release>
-        <exec.mainClass>edu.unimet.avila.os.AvilaOs</exec.mainClass>
+        <exec.mainClass>edu.unimet.avilaos.AvilaOs</exec.mainClass>
     </properties>
 </project>
