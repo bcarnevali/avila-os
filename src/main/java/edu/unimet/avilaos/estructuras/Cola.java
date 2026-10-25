@@ -45,6 +45,13 @@ public class Cola<T> {
         return estaVacia() ? null : primero.getDato();
     }
 
+    /**
+ * Elimina la primera ocurrencia del elemento especificado en la cola.
+ *
+ * @param elemento El elemento que se desea eliminar.
+ * @return {@code true} si el elemento estaba en la cola y fue eliminado;
+ *         {@code false} si el elemento no se encontró.
+ */
     public boolean eliminar(T elemento) {
         if (estaVacia()) return false;
 
