@@ -185,7 +185,7 @@ public class Planificador {
         try {
             usarPolitica(FabricaPoliticas.crear(tipo, quantum));
             reordenarListosSinLock();
-            registrar(ciclo, "Computador " + idComputador + " cambia su política a " + tipo);
+            registrar(ciclo, "Cambia su política a " + tipo);
         } finally {
             mutex.release();
         }
@@ -202,7 +202,7 @@ public class Planificador {
             if (politica.getTipo() == TipoPolitica.ROUND_ROBIN) {
                 usarPolitica(FabricaPoliticas.crear(TipoPolitica.ROUND_ROBIN, quantum));
             }
-            registrar(ciclo, "Computador " + idComputador + " cambia el quantum a " + quantum);
+            registrar(ciclo, "Cambia el quantum a " + quantum);
         } finally {
             mutex.release();
         }
@@ -276,7 +276,7 @@ public class Planificador {
         if (primeraVez) {
             metricas.registrarTiempoRespuesta(ciclo - siguiente.getCicloLlegada());
         }
-        registrar(ciclo, "Computador " + idComputador + " selecciona el proceso " + siguiente);
+        registrar(ciclo, "Selecciona el proceso " + siguiente);
         return siguiente;
     }
 
