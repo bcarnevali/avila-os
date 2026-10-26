@@ -136,7 +136,100 @@ public class VistaCrearProceso extends JPanel {
         }
     }
 
-    private void crear() {
-        JOptionPane.showMessageDialog(this, "Validación pendiente");
+        private void crear() {
+        try {
+            SolicitudProceso solicitud = leerSolicitud();
+            if (creador == null) {
+                JOptionPane.showMessageDialog(this,
+                        "Los datos son válidos, pero todavía no hay un sistema conectado.",
+                        "Sin conexión", JOptionPane.INFORMATION_MESSAGE);
+                return;
+            }
+            creador.crearProceso(solicitud);
+            limpiarCampos();
+        } catch (IllegalArgumentException | IllegalStateException ex) {
+            JOptionPane.showMessageDialog(this, ex.getMessage(),
+                    "Datos inválidos", JOptionPane.ERROR_MESSAGE);
+        }
+    }
+
+    private SolicitudProceso leerSolicitud() {
+        String nombre = campoNombre.getText().trim();
+        if (nombre.isEmpty()) {
+            throw new IllegalArgumentException("El nombre es obligatorio.");
+        }
+        if (nombre.length() > 30) {
+            throw new IllegalArgumentException("El nombre no puede pasar de 30 caracteres.");
+        }
+
+        TipoProceso tipo = (TipoProceso) comboTipo.getSelectedItem();
+        int instrucciones = leerEntero(campoInstrucciones, "Instrucciones", 1, 1_000_000);
+        int memoria = leerEntero(campoMemoria, "Memoria requerida", 1, 1_000_000);
+        int prioridad = leerEntero(campoPrioridad, "Prioridad", 1, 10);
+        int deadline = leerEntero(campoDeadline, "Deadline", 1, 1_000_000);
+        int idComputador = leerComputador();
+
+        int ciclosEntreES = 0;
+        int ciclosES = 0;
+        String buffer = null;
+        int ciclosPorElemento = 0;
+        int elementos = 0;
+
+        if (tipo == TipoProceso.PRODUCTOR || tipo == TipoProceso.CONSUMIDOR) {
+            buffer = campoBuffer.getText().trim();
+            if (buffer.isEmpty()) {
+                throw new IllegalArgumentException("Debe indicar el buffer.");
+            }
+            if (buffer.length() > 20) {
+                throw new IllegalArgumentException("El nombre del buffer no puede pasar de 20 caracteres.");
+            }
+            ciclosPorElemento = leerEntero(campoCiclosPorElemento, "Ciclos por elemento", 1, 1_000_000);
+            elementos = leerEntero(campoElementos, "Elementos requeridos", 1, 1_000_000);
+        } else {
+            ciclosEntreES = leerEntero(campoCiclosEntreES, "Pide E/S cada", 1, 1_000_000);
+            ciclosES = leerEntero(campoCiclosES, "Ciclos que tarda la E/S", 1, 1_000_000);
+        }
+
+        return new SolicitudProceso(nombre, tipo, prioridad, memoria, instrucciones, deadline,
+                idComputador, ciclosEntreES, ciclosES, buffer, ciclosPorElemento, elementos);
+    }
+
+    private int leerEntero(JTextField campo, String nombreCampo, int minimo, int maximo) {
+        String texto = campo.getText().trim();
+        if (texto.isEmpty()) {
+            throw new IllegalArgumentException("El campo \"" + nombreCampo + "\" es obligatorio.");
+        }
+        int valor;
+        try {
+            valor = Integer.parseInt(texto);
+        } catch (NumberFormatException ex) {
+            throw new IllegalArgumentException("El campo \"" + nombreCampo + "\" debe ser un número entero.");
+        }
+        if (valor < minimo || valor > maximo) {
+            throw new IllegalArgumentException("El campo \"" + nombreCampo
+                    + "\" debe estar entre " + minimo + " y " + maximo + ".");
+        }
+        return valor;
+    }
+
+    private int leerComputador() {
+        int indice = comboComputador.getSelectedIndex();
+        if (indice < 0) {
+            throw new IllegalArgumentException("Debe elegir un computador.");
+        }
+        return indice == 0 ? SolicitudProceso.AUTOMATICO : indice;
+    }
+
+    private void limpiarCampos() {
+        campoNombre.setText("");
+        campoInstrucciones.setText("");
+        campoMemoria.setText("");
+        campoPrioridad.setText("");
+        campoDeadline.setText("");
+        campoCiclosEntreES.setText("");
+        campoCiclosES.setText("");
+        campoBuffer.setText("");
+        campoCiclosPorElemento.setText("");
+        campoElementos.setText("");
     }
 }
