@@ -3,14 +3,14 @@
  */
 
 package edu.unimet.avilaos;
+import edu.unimet.avilaos.gui.VentanaPrincipal;
+import javax.swing.SwingUtilities;
 
-/**
- *
- * @author bettinacarnevali
- */
+
 public class AvilaOs {
 
     public static void main(String[] args) {
-    javax.swing.SwingUtilities.invokeLater(() -> new edu.unimet.avilaos.gui.VentanaPrincipal().setVisible(true));
+    SwingUtilities.invokeLater(() -> new VentanaPrincipal().setVisible(true));
 }
 }
+
