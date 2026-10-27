@@ -17,7 +17,10 @@ import javax.swing.JPanel;
 import javax.swing.JTextField;
 import javax.swing.SwingConstants;
 
-/** Vista 1: formulario para crear procesos. Solo recoge datos; no decide nada del SO. */
+/**
+ * Vista 1: formulario para crear procesos. Solo recoge datos; no decide nada
+ * del SO.
+ */
 public class VistaCrearProceso extends JPanel {
 
     private static final String PANEL_ES = "es";
@@ -83,12 +86,16 @@ public class VistaCrearProceso extends JPanel {
         mostrarPanelDelTipo();
     }
 
-    /** Quien conecte la GUI con el sistema se registra aquí. */
+    /**
+     * Quien conecte la GUI con el sistema se registra aquí.
+     */
     public void setCreador(CreadorProcesos creador) {
         this.creador = creador;
     }
 
-    /** Rehace la lista de computadores según la configuración. */
+    /**
+     * Rehace la lista de computadores según la configuración.
+     */
     public final void setCantidadComputadores(int cantidad) {
         comboComputador.removeAllItems();
         comboComputador.addItem("Automático");
@@ -136,7 +143,7 @@ public class VistaCrearProceso extends JPanel {
         }
     }
 
-        private void crear() {
+    private void crear() {
         try {
             SolicitudProceso solicitud = leerSolicitud();
             if (creador == null) {
@@ -186,8 +193,9 @@ public class VistaCrearProceso extends JPanel {
             ciclosPorElemento = leerEntero(campoCiclosPorElemento, "Ciclos por elemento", 1, 1_000_000);
             elementos = leerEntero(campoElementos, "Elementos requeridos", 1, 1_000_000);
         } else {
-            ciclosEntreES = leerEntero(campoCiclosEntreES, "Pide E/S cada", 1, 1_000_000);
-            ciclosES = leerEntero(campoCiclosES, "Ciclos que tarda la E/S", 1, 1_000_000);
+            int minimoES = (tipo == TipoProceso.IO_BOUND) ? 1 : 0;
+            ciclosEntreES = leerEntero(campoCiclosEntreES, "Pide E/S cada", minimoES, 1_000_000);
+            ciclosES = leerEntero(campoCiclosES, "Ciclos que tarda la E/S", minimoES, 1_000_000);
         }
 
         return new SolicitudProceso(nombre, tipo, prioridad, memoria, instrucciones, deadline,
