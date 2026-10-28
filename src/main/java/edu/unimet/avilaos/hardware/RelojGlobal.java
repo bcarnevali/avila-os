@@ -13,7 +13,7 @@ import edu.unimet.avilaos.estructuras.ListaEnlazada;
 public class RelojGlobal extends Thread{
     
     private final ListaEnlazada<ComponenteReloj> componentes = new ListaEnlazada<>();
-    private long cicloActual = 0;
+    private volatile long cicloActual = 0;
     private volatile long duracionCicloMs;
     private volatile boolean corriendo = true;
     private volatile boolean pausado = false;
@@ -40,9 +40,10 @@ public class RelojGlobal extends Thread{
         notifyAll();
     }
 
-    public void detener() {
+    public synchronized void detener() {
         this.corriendo = false;
         this.pausado = false;
+        notifyAll();
         this.interrupt();
     }
 
