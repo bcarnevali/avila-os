@@ -12,7 +12,7 @@ import edu.unimet.avilaos.modelo.enums.ModoEjecucion;
  */
 public class CPU implements ComponenteReloj{
     
-    private PCB enEjecucion;
+    private volatile PCB enEjecucion;
     private ModoEjecucion modo;
 
     public CPU() {
