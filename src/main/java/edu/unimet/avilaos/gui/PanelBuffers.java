@@ -17,6 +17,11 @@ public class PanelBuffers extends JPanel {
     private final JProgressBar pbCapacidad = new JProgressBar(0, 100);
     private final ModeloTablaPCB modeloBloqueadosBuffer = new ModeloTablaPCB();
 
+    // Constructor por defecto
+    public PanelBuffers() {
+        this("Buffer General");
+    }
+
     public PanelBuffers(String nombreBuffer) {
         setLayout(new BorderLayout(5, 5));
         setBorder(BorderFactory.createTitledBorder(nombreBuffer));
