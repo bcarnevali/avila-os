@@ -91,24 +91,34 @@ public class Computador implements ComponenteReloj {
             return false;
         }
 
-        // TODO Bettina: latencia de red si b.getIdAnfitrion() != id
+        // Acceso remoto: el proceso espera la latencia de la red antes de operar sobre el buffer
+        if (b.getIdAnfitrion() != id && !cluster.getRed().yaLlego(pcb)) {
+            pcb.retrocederInstruccion();
+            planificador.bloquear(pcb, MotivoBloqueo.LATENCIA_RED, ciclo);
+            registrar(ciclo, "Proceso " + pcb + " accede al buffer " + b.getId()
+                    + " de forma remota (está en el Computador " + b.getIdAnfitrion() + ")");
+            cluster.getRed().enviar(pcb, b.getIdAnfitrion(), ciclo);
+            return true;
+        }
 
         if (pcb.getTipo() == TipoProceso.PRODUCTOR) {
             if (!b.getVacios().semWait(pcb)) {
                 pcb.retrocederInstruccion();
                 planificador.bloquear(pcb, MotivoBloqueo.SEMAFORO_VACIOS, ciclo);
+                registrar(ciclo, "Proceso " + pcb + " se bloquea en el semáforo '" + b.getVacios().getNombre() + "'");
                 return true;
             }
             if (!b.getMutex().semWait(pcb)) {
                 pcb.retrocederInstruccion();
                 planificador.bloquear(pcb, MotivoBloqueo.SEMAFORO_MUTEX, ciclo);
+                registrar(ciclo, "Proceso " + pcb + " se bloquea en el semáforo '" + b.getMutex().getNombre() + "'");
                 return true;
             }
             b.insertar(pcb.getId());
             pcb.registrarElementoProcesado();
             metricas.registrarProduccion();
             if (log != null) {
-                log.registrar(ciclo, "[Computador " + id + "] Proceso " + pcb.getId() + " produce en " + b.getId() + " (" + b.getOcupados() + "/" + b.getCapacidad() + ")");
+                log.registrar(ciclo, "[Computador " + id + "] Proceso " + pcb + " produce en " + b.getId() + " (" + b.getOcupados() + "/" + b.getCapacidad() + ")");
             }
             despertar(b.getMutex().semSignal(), ciclo);
             despertar(b.getLlenos().semSignal(), ciclo);
@@ -117,18 +127,20 @@ public class Computador implements ComponenteReloj {
             if (!b.getLlenos().semWait(pcb)) {
                 pcb.retrocederInstruccion();
                 planificador.bloquear(pcb, MotivoBloqueo.SEMAFORO_LLENOS, ciclo);
+                registrar(ciclo, "Proceso " + pcb + " se bloquea en el semáforo '" + b.getLlenos().getNombre() + "'");
                 return true;
             }
             if (!b.getMutex().semWait(pcb)) {
                 pcb.retrocederInstruccion();
                 planificador.bloquear(pcb, MotivoBloqueo.SEMAFORO_MUTEX, ciclo);
+                registrar(ciclo, "Proceso " + pcb + " se bloquea en el semáforo '" + b.getMutex().getNombre() + "'");
                 return true;
             }
             b.extraer();
             pcb.registrarElementoProcesado();
             metricas.registrarConsumo();
             if (log != null) {
-                log.registrar(ciclo, "[Computador " + id + "] Proceso " + pcb.getId() + " consume de " + b.getId() + " (" + b.getOcupados() + "/" + b.getCapacidad() + ")");
+                log.registrar(ciclo, "[Computador " + id + "] Proceso " + pcb + " consume de " + b.getId() + " (" + b.getOcupados() + "/" + b.getCapacidad() + ")");
             }
             despertar(b.getMutex().semSignal(), ciclo);
             despertar(b.getVacios().semSignal(), ciclo);
@@ -148,6 +160,12 @@ public class Computador implements ComponenteReloj {
 
     public void crearProceso(PCB pcb, long ciclo) {
         planificador.crearProceso(pcb, ciclo);
+    }
+
+    private void registrar(long ciclo, String mensaje) {
+        if (log != null) {
+            log.registrar(ciclo, "[Computador " + id + "] " + mensaje);
+        }
     }
 
     public void setCluster(Cluster cluster) { this.cluster = cluster; }
