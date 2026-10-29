@@ -58,4 +58,7 @@ public class VentanaPrincipal extends JFrame {
         boton.addActionListener(e -> cardLayout.show(contenedor, vista));
         return boton;
     }
+    public VistaSimulacion getVistaSimulacion() {
+        return vistaSimulacion;
+    }
 }

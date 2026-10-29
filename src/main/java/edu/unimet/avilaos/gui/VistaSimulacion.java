@@ -35,7 +35,6 @@ public class VistaSimulacion extends JPanel {
         int total = cluster.getCantidad();
         panelComputadores.setLayout(new GridLayout(1, total, 10, 10));
 
-        // Arreglo nativo para almacenar las referencias visuales
         panelesPc = new PanelComputador[total];
 
         for (int i = 1; i <= total; i++) {
@@ -57,7 +56,9 @@ public class VistaSimulacion extends JPanel {
         for (int i = 1; i <= cluster.getCantidad(); i++) {
             if (i - 1 < panelesPc.length) {
                 Computador pc = cluster.getComputador(i);
-                panelesPc[i - 1].actualizarDatos(pc);
+                if (pc != null) {
+                    panelesPc[i - 1].actualizarDatos(pc);
+                }
             }
         }
     }
@@ -69,4 +70,5 @@ public class VistaSimulacion extends JPanel {
     public PanelComputador[] getPanelesPc() {
         return panelesPc;
     }
+    
 }
