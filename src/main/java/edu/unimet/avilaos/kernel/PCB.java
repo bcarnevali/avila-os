@@ -245,4 +245,9 @@ public class PCB {
     public String toString() {
         return "P" + id + "-H1";
     }
+    
+    public void retrocederInstruccion() {
+    this.pc--;
+    this.mar--;
+    }
 }
