@@ -15,6 +15,7 @@ public class PanelControles extends JPanel {
     private final JButton botonPausar = new JButton("Pausar");
     private final JSpinner spinnerDuracion = new JSpinner(new SpinnerNumberModel(500, 50, 5000, 50));
     private final JSpinner spinnerQuantum = new JSpinner(new SpinnerNumberModel(3, 1, 100, 1));
+    private final JSpinner spinnerLatencia = new JSpinner(new SpinnerNumberModel(3, 0, 50, 1));
     private final JButton botonAplicar = new JButton("Aplicar");
     private final JLabel etiquetaCiclo = new JLabel("Ciclo: 0");
 
@@ -27,6 +28,8 @@ public class PanelControles extends JPanel {
         add(spinnerDuracion);
         add(new JLabel("Quantum:"));
         add(spinnerQuantum);
+        add(new JLabel("Latencia (ciclos):"));
+        add(spinnerLatencia);
         add(botonAplicar);
         add(etiquetaCiclo);
         botonPausar.setEnabled(false);
@@ -41,6 +44,7 @@ public class PanelControles extends JPanel {
     public JButton getBotonAplicar() { return botonAplicar; }
     public int getDuracionCiclo() { return (Integer) spinnerDuracion.getValue(); }
     public int getQuantum() { return (Integer) spinnerQuantum.getValue(); }
+    public int getLatencia() { return (Integer) spinnerLatencia.getValue(); }
     public void setDuracionCiclo(int ms) { spinnerDuracion.setValue(ms); }
     public void setQuantum(int quantum) { spinnerQuantum.setValue(quantum); }
 }

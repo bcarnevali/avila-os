@@ -139,12 +139,19 @@ public class ControladorSimulacion implements CreadorProcesos {
         }
     }
 
-    /** Cambia en ejecución la duración del ciclo y el quantum de todos los computadores. */
+    /** Cambia en ejecución la duración del ciclo, el quantum y la latencia de red. Solo registra lo que cambió. */
     private void aplicarParametros() {
         cluster.getReloj().setDuracionCiclo(controles.getDuracionCiclo());
         long ciclo = cluster.getReloj().getCicloActual();
         for (int id = 1; id <= cluster.getCantidad(); id++) {
-            cluster.getComputador(id).getPlanificador().cambiarQuantum(controles.getQuantum(), ciclo);
+            if (cluster.getComputador(id).getPlanificador().getQuantum() != controles.getQuantum()) {
+                cluster.getComputador(id).getPlanificador().cambiarQuantum(controles.getQuantum(), ciclo);
+            }
+        }
+        if (cluster.getRed().getLatencia() != controles.getLatencia()) {
+            cluster.getRed().setLatencia(controles.getLatencia());
+            vistaSimulacion.getPanelLog().registrar(ciclo, "[ÁvilaOS] La latencia de red cambia a "
+                    + controles.getLatencia() + " ciclos");
         }
     }
 
