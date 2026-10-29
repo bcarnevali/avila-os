@@ -7,81 +7,52 @@ package edu.unimet.avilaos.hardware;
 import edu.unimet.avilaos.estructuras.Cola;
 import edu.unimet.avilaos.kernel.PCB;
 import edu.unimet.avilaos.modelo.enums.EstadoProceso;
-import edu.unimet.avilaos.modelo.enums.MotivoBloqueo;
 
 public class DispositivoES implements ComponenteReloj {
+    private final Cola<PCB> enEspera = new Cola<>();
+    private final Cola<PCB> terminados = new Cola<>();
+    private PCB enAtencion;
+    private int restante;
 
-    private final String nombre;
-    private final Cola<PCB> colaBloqueados = new Cola<>();
-    private PCB procesoEnAtencion = null;
-    private int tiempoRestanteES = 0;
-
-    public DispositivoES(String nombre) {
-        this.nombre = nombre;
+    public synchronized void solicitarES(PCB pcb) {
+        enEspera.encolar(pcb);
     }
 
-    /**
-     * Encola un proceso que requiere hacer una operación de E/S.
-     * Cambia el estado del proceso a BLOQUEADO por motivo ES.
-     */
-    public synchronized void solicitarES(PCB pcb, int duracionCiclos) {
-        if (pcb == null) return;
-
-        pcb.setEstado(EstadoProceso.BLOQUEADO);
-        pcb.setMotivoBloqueo(MotivoBloqueo.ES);
-        
-        this.tiempoRestanteES = duracionCiclos;
-        colaBloqueados.encolar(pcb);
-
-        // Si el dispositivo está libre, inicia de inmediato
-        if (procesoEnAtencion == null) {
-            atenderSiguiente();
-        }
-    }
-
-    private void atenderSiguiente() {
-        if (!colaBloqueados.estaVacia()) {
-            procesoEnAtencion = colaBloqueados.desencolar();
-        }
-    }
-
-    /**
-     * Avance en cada pulso de reloj: descuenta el tiempo de la E/S en curso.
-     */
     @Override
     public synchronized void tick(long ciclo) {
-        if (procesoEnAtencion == null) {
-            atenderSiguiente();
+        if (enAtencion == null && !enEspera.estaVacia()) {
+            enAtencion = enEspera.desencolar();
+            restante = enAtencion.getCiclosParaSatisfacerES();
         }
 
-        if (procesoEnAtencion != null) {
-            tiempoRestanteES--;
+        if (enAtencion == null) {
+            return;
+        }
 
-            // Cuando la E/S finaliza, desbloqueamos el proceso
-            if (tiempoRestanteES <= 0) {
-                procesoEnAtencion.setMotivoBloqueo(null);
-                procesoEnAtencion.setEstado(EstadoProceso.LISTO);
-                procesoEnAtencion = null;
+        // Se le venció el deadline mientras esperaba/atendía E/S
+        if (enAtencion.getEstado() == EstadoProceso.TERMINADO) {
+            enAtencion = null;
+            return;
+        }
 
-                // Prepara el siguiente proceso en cola si lo hay
-                atenderSiguiente();
-            }
+        restante--;
+
+        if (restante <= 0) {
+            terminados.encolar(enAtencion);
+            enAtencion = null;
         }
     }
 
-    public String getNombre() {
-        return nombre;
+    /** Devuelve un proceso que terminó su E/S, o null si no hay. */
+    public synchronized PCB retirarTerminado() {
+        return terminados.desencolar();
     }
 
-    public synchronized PCB getProcesoEnAtencion() {
-        return procesoEnAtencion;
+    public synchronized PCB getEnAtencion() {
+        return enAtencion;
     }
 
-    public synchronized Cola<PCB> getColaBloqueados() {
-        return colaBloqueados;
-    }
-
-    public synchronized boolean estaOcupado() {
-        return procesoEnAtencion != null;
+    public synchronized Cola<PCB> getEnEspera() {
+        return enEspera;
     }
 }
