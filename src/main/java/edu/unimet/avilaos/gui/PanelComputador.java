@@ -8,6 +8,7 @@ import java.awt.*;
 public class PanelComputador extends JPanel {
 
     private final String titulo;
+    private edu.unimet.avilaos.cluster.Computador pcAsociado;
 
     // Componentes del Panel Superior (CPU, RAM y Selector de Política)
     private final JLabel lblCpuEstado = new JLabel("CPU: Ociosa | Modo: USUARIO | PC: 0");
@@ -34,7 +35,7 @@ public class PanelComputador extends JPanel {
         JPanel panelInfoCpu = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 0));
         panelInfoCpu.add(lblCpuEstado);
 
-        // Subpanel de Detalle (Prioridad y Deadline solicitados por Bettina)
+        // Subpanel de Detalle (Prioridad y Deadline)
         JPanel panelDetalleCpu = new JPanel(new FlowLayout(FlowLayout.LEFT, 15, 0));
         panelDetalleCpu.add(lblPrioridadProceso);
         panelDetalleCpu.add(lblDeadlineProceso);
@@ -80,10 +81,25 @@ public class PanelComputador extends JPanel {
     }
 
     /**
+     * Enlaza este panel con la instancia real del Computador backend.
+     */
+    public void asociarComputador(edu.unimet.avilaos.cluster.Computador pc) {
+        this.pcAsociado = pc;
+        if (pc != null && pc.getPlanificador() != null) {
+            cbPolitica.setSelectedItem(pc.getPlanificador().getTipoPolitica());
+        }
+    }
+
+    /**
      * Actualiza la interfaz con el estado actual del Computador en cada ciclo de reloj.
      */
     public void actualizarDatos(edu.unimet.avilaos.cluster.Computador pc) {
         if (pc == null) return;
+        
+        // Guardar referencia al computador si aún no la tenía
+        if (this.pcAsociado == null) {
+            asociarComputador(pc);
+        }
 
         // 1. Estado de CPU, Prioridad y Deadline
         PCB enEjecucion = pc.getCpu().getEnEjecucion();
@@ -92,7 +108,7 @@ public class PanelComputador extends JPanel {
                                + " | Modo: " + pc.getCpu().getModo() 
                                + " | PC: " + pc.getCpu().getPc());
             lblPrioridadProceso.setText("Prioridad: " + enEjecucion.getPrioridad());
-            lblDeadlineProceso.setText("Deadline: " + enEjecucion.getDeadlineRestante()+ " ms");
+            lblDeadlineProceso.setText("Deadline: " + enEjecucion.getDeadlineRestante() + " ms");
         } else {
             lblCpuEstado.setText("CPU: Ociosa | Modo: " + pc.getCpu().getModo() + " | PC: " + pc.getCpu().getPc());
             lblPrioridadProceso.setText("Prioridad: -");
@@ -114,8 +130,11 @@ public class PanelComputador extends JPanel {
     }
 
     private void cambiarPoliticaSimulacion(TipoPolitica nuevaPolitica) {
-        // Conexión con la lógica del planificador al cambiar en el ComboBox
-        System.out.println("Política cambiada a: " + nuevaPolitica);
+        if (pcAsociado != null && pcAsociado.getPlanificador() != null) {
+            // Se invoca cambiarPolitica pasando el ciclo actual (0 por defecto si no hay reloj global expuesto aún)
+            pcAsociado.getPlanificador().cambiarPolitica(nuevaPolitica, 0);
+            System.out.println("Política del Computador " + pcAsociado.getId() + " cambiada a: " + nuevaPolitica);
+        }
     }
 
     public String getTitulo() { return titulo; }
