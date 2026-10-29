@@ -4,8 +4,8 @@
  */
 package edu.unimet.avilaos.cluster;
 
-import edu.unimet.avilaos.hardware.ComponenteReloj;
 import edu.unimet.avilaos.hardware.CPU;
+import edu.unimet.avilaos.hardware.ComponenteReloj;
 import edu.unimet.avilaos.hardware.DispositivoES;
 import edu.unimet.avilaos.hardware.MemoriaPrincipal;
 import edu.unimet.avilaos.kernel.PCB;
@@ -31,34 +31,44 @@ public class Computador implements ComponenteReloj {
         this.planificador = new Planificador(id, memoria, metricas, politica, quantum, log);
     }
 
-    /** Un ciclo de reloj: coordinamos la CPU y el Planificador */
+    /** Un ciclo de reloj: coordina la E/S, la CPU y el Planificador. */
     @Override
     public void tick(long ciclo) {
-    // 1. AL PRINCIPIO DEL TICK: Avanza E/S y desbloquea procesos que finalizaron E/S
+        // 1. Avanza la E/S y devuelve a listos los procesos que ya terminaron su E/S
         dispositivoES.tick(ciclo);
         PCB terminoES;
         while ((terminoES = dispositivoES.retirarTerminado()) != null) {
             planificador.desbloquear(terminoES, ciclo);
-    }
+        }
 
-    // 2. EJECUCIÓN Y PLANIFICACIÓN (Lógica original de tu clase)
+        // 2. Deadlines y planificacion (modo sistema operativo)
         PCB actual = cpu.getEnEjecucion();
+        cpu.setModo(ModoEjecucion.SISTEMA_OPERATIVO);
 
-        if (actual != null) {
-            if (actual.haTerminado()) {
-            // Liberación del proceso que terminó su ejecución
-                cpu.setEnEjecucion(null);
-                return; // Detiene el flujo para este proceso
-        }   
+        if (planificador.descontarDeadlines(actual, ciclo)) {
+            actual = null; // Se vencio el deadline del proceso en la CPU
+        }
 
-        // 3. AL FINAL DEL TICK: Solicitar E/S si le corresponde
-            if (actual.leTocaES() && actual.getCiclosParaSatisfacerES() > 0) {
-                planificador.bloquear(actual, MotivoBloqueo.ES, ciclo);
-                dispositivoES.solicitarES(actual);
-                cpu.setEnEjecucion(null);
+        actual = planificador.planificar(actual, ciclo);
+        cpu.setEnEjecucion(actual);
+        metricas.registrarCiclo(actual != null);
+
+        if (actual == null) return; // CPU ociosa en este ciclo
+
+        // 3. Ejecuta una instruccion (modo usuario)
+        cpu.setModo(ModoEjecucion.USUARIO);
+        cpu.ejecutarInstruccion();
+
+        if (actual.haTerminado()) {
+            planificador.terminar(actual, ciclo);
+            cpu.setEnEjecucion(null);
+        } else if (actual.leTocaES() && actual.getCiclosParaSatisfacerES() > 0) {
+            // 4. Le toca E/S: se bloquea y libera la CPU
+            planificador.bloquear(actual, MotivoBloqueo.ES, ciclo);
+            dispositivoES.solicitarES(actual);
+            cpu.setEnEjecucion(null);
         }
     }
-}
 
     public void crearProceso(PCB pcb, long ciclo) {
         planificador.crearProceso(pcb, ciclo);
