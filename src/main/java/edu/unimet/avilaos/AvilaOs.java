@@ -9,8 +9,11 @@ public class AvilaOs {
     public static void main(String[] args) {
         SwingUtilities.invokeLater(() -> {
             VentanaPrincipal ventana = new VentanaPrincipal();
-            new ControladorSimulacion(ventana.getVistaCrearProceso(),
-                    ventana.getVistaSimulacion(), ventana.getPanelControles());
+            new ControladorSimulacion(
+                ventana.getVistaCrearProceso(),
+                ventana.getVistaSimulacion(),
+                ventana.getPanelControles()
+            );
             ventana.setVisible(true);
         });
     }
