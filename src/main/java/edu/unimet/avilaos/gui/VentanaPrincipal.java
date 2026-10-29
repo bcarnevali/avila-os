@@ -44,6 +44,15 @@ public class VentanaPrincipal extends JFrame {
         add(contenedor, BorderLayout.CENTER);
     }
 
+    /**
+     * Conecta el creador de procesos con la vista correspondiente.
+     */
+    public void setCreador(CreadorProcesos creador) {
+        if (vistaCrearProceso != null) {
+            vistaCrearProceso.setCreador(creador);
+        }
+    }
+
     private JButton crearBoton(String texto, String vista) {
         JButton boton = new JButton(texto);
         boton.addActionListener(e -> cardLayout.show(contenedor, vista));

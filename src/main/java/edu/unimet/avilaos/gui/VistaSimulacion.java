@@ -2,64 +2,112 @@ package edu.unimet.avilaos.gui;
 
 import edu.unimet.avilaos.cluster.Cluster;
 import edu.unimet.avilaos.cluster.Computador;
+import edu.unimet.avilaos.sincronizacion.Buffer;
 import java.awt.BorderLayout;
 import java.awt.Dimension;
 import java.awt.GridLayout;
+import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
 import javax.swing.JSplitPane;
+import javax.swing.JTabbedPane;
+import javax.swing.SwingConstants;
 
+/** Vista 2: computadores arriba; log, metricas y buffers abajo en pestañas. */
 public class VistaSimulacion extends JPanel {
 
     private final JPanel panelComputadores = new JPanel();
     private final PanelLog panelLog = new PanelLog();
+    private final JPanel panelMetricas = new JPanel();
+    private final JPanel panelBuffers = new JPanel();
+
     private PanelComputador[] panelesPc = new PanelComputador[0];
+    private PanelMetricas[] panelesMetricas = new PanelMetricas[0];
+    private PanelBuffers[] panelesBuffers = new PanelBuffers[0];
 
     public VistaSimulacion() {
         setLayout(new BorderLayout(5, 5));
 
-        JScrollPane scrollComputadores = new JScrollPane(panelComputadores);
-        panelLog.setPreferredSize(new Dimension(0, 180));
+        JTabbedPane pestanas = new JTabbedPane();
+        pestanas.addTab("Log de eventos", panelLog);
+        pestanas.addTab("Métricas", new JScrollPane(panelMetricas));
+        pestanas.addTab("Buffers", new JScrollPane(panelBuffers));
+        pestanas.setPreferredSize(new Dimension(0, 300));
 
-        JSplitPane splitPane = new JSplitPane(JSplitPane.VERTICAL_SPLIT, scrollComputadores, panelLog);
-        splitPane.setResizeWeight(0.75);
-
+        JSplitPane splitPane = new JSplitPane(JSplitPane.VERTICAL_SPLIT,
+                new JScrollPane(panelComputadores), pestanas);
+        splitPane.setResizeWeight(0.6);
         add(splitPane, BorderLayout.CENTER);
     }
 
-    /** Carga dinámicamente los computadores creados en el Cluster */
+    /** Crea un panel de computador y uno de metricas por cada computador del cluster. */
     public void cargarCluster(Cluster cluster) {
         if (cluster == null) return;
+        int total = cluster.getCantidad();
 
         panelComputadores.removeAll();
-        int total = cluster.getCantidad();
         panelComputadores.setLayout(new GridLayout(1, total, 10, 10));
+        panelMetricas.removeAll();
+        panelMetricas.setLayout(new GridLayout(1, total, 10, 10));
 
-        // Arreglo nativo para almacenar las referencias visuales
         panelesPc = new PanelComputador[total];
-
+        panelesMetricas = new PanelMetricas[total];
         for (int i = 1; i <= total; i++) {
             Computador pc = cluster.getComputador(i);
-            PanelComputador panelPc = new PanelComputador("Computador " + pc.getId());
-            
-            panelesPc[i - 1] = panelPc;
-            panelComputadores.add(panelPc);
+            panelesPc[i - 1] = new PanelComputador("Computador " + pc.getId());
+            panelesPc[i - 1].asociarComputador(pc);
+            panelComputadores.add(panelesPc[i - 1]);
+
+            panelesMetricas[i - 1] = new PanelMetricas("Computador " + pc.getId());
+            panelMetricas.add(panelesMetricas[i - 1]);
         }
 
-        panelComputadores.revalidate();
-        panelComputadores.repaint();
+        panelesBuffers = new PanelBuffers[0];
+        reconstruirBuffers(cluster.getBuffers());
+
+        revalidate();
+        repaint();
     }
 
-    /** Refresca el estado visual de cada computador en cada ciclo de reloj */
+    /** Refresca todo lo visible. Lo llama el Timer del controlador (hilo de Swing). */
     public void actualizarDatos(Cluster cluster) {
-        if (cluster == null || panelesPc.length == 0) return;
+        if (cluster == null) return;
+        long ciclo = cluster.getReloj().getCicloActual();
 
-        for (int i = 1; i <= cluster.getCantidad(); i++) {
-            if (i - 1 < panelesPc.length) {
-                Computador pc = cluster.getComputador(i);
+        for (int i = 1; i <= cluster.getCantidad() && i - 1 < panelesPc.length; i++) {
+            Computador pc = cluster.getComputador(i);
+            if (pc != null) {
                 panelesPc[i - 1].actualizarDatos(pc);
+                panelesMetricas[i - 1].actualizar(pc.getMetricas(), ciclo);
             }
         }
+
+        Buffer[] buffers = cluster.getBuffers();
+        if (buffers.length != panelesBuffers.length) {
+            reconstruirBuffers(buffers);
+        }
+        for (int i = 0; i < buffers.length; i++) {
+            panelesBuffers[i].actualizar(buffers[i]);
+        }
+    }
+
+    private void reconstruirBuffers(Buffer[] buffers) {
+        panelBuffers.removeAll();
+        if (buffers.length == 0) {
+            panelBuffers.setLayout(new BorderLayout());
+            panelBuffers.add(new JLabel("No hay buffers creados", SwingConstants.CENTER), BorderLayout.CENTER);
+        } else {
+            panelBuffers.setLayout(new GridLayout(1, buffers.length, 10, 10));
+        }
+        panelesBuffers = new PanelBuffers[buffers.length];
+        for (int i = 0; i < buffers.length; i++) {
+            panelesBuffers[i] = new PanelBuffers("Buffer " + buffers[i].getId()
+                    + " (en Computador " + buffers[i].getIdAnfitrion()
+                    + ", capacidad " + buffers[i].getCapacidad() + ")");
+            panelBuffers.add(panelesBuffers[i]);
+        }
+        panelBuffers.revalidate();
+        panelBuffers.repaint();
     }
 
     public PanelLog getPanelLog() {
