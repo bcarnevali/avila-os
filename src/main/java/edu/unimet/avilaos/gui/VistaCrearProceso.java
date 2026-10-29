@@ -198,20 +198,8 @@ public class VistaCrearProceso extends JPanel {
             ciclosES = leerEntero(campoCiclosES, "Ciclos que tarda la E/S", minimoES, 1_000_000);
         }
 
-        return new SolicitudProceso(
-            nombre, 
-            tipo, 
-            prioridad, 
-            idComputador,       
-            memoria,           
-            instrucciones, 
-            deadline, 
-            buffer, 
-            ciclosPorElemento, 
-            elementos, 
-            ciclosEntreES, 
-            ciclosES
-        );
+        return new SolicitudProceso(nombre, tipo, prioridad, memoria, instrucciones, deadline,
+                idComputador, ciclosEntreES, ciclosES, buffer, ciclosPorElemento, elementos);
     }
 
     private int leerEntero(JTextField campo, String nombreCampo, int minimo, int maximo) {

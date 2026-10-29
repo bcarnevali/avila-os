@@ -9,6 +9,8 @@ public class PanelComputador extends JPanel {
 
     private final String titulo;
     private edu.unimet.avilaos.cluster.Computador pcAsociado;
+    /** true mientras el combo se ajusta por codigo, para no registrar un cambio de politica falso. */
+    private boolean sincronizandoCombo = false;
 
     // Componentes del Panel Superior (CPU, RAM y Selector de Política)
     private final JLabel lblCpuEstado = new JLabel("CPU: Ociosa | Modo: USUARIO | PC: 0");
@@ -46,7 +48,7 @@ public class PanelComputador extends JPanel {
         
         cbPolitica.addActionListener(e -> {
             TipoPolitica seleccionada = (TipoPolitica) cbPolitica.getSelectedItem();
-            if (seleccionada != null) {
+            if (seleccionada != null && !sincronizandoCombo) {
                 cambiarPoliticaSimulacion(seleccionada);
             }
         });
@@ -86,7 +88,9 @@ public class PanelComputador extends JPanel {
     public void asociarComputador(edu.unimet.avilaos.cluster.Computador pc) {
         this.pcAsociado = pc;
         if (pc != null && pc.getPlanificador() != null) {
+            sincronizandoCombo = true;
             cbPolitica.setSelectedItem(pc.getPlanificador().getTipoPolitica());
+            sincronizandoCombo = false;
         }
     }
 
@@ -108,7 +112,7 @@ public class PanelComputador extends JPanel {
                                + " | Modo: " + pc.getCpu().getModo() 
                                + " | PC: " + pc.getCpu().getPc());
             lblPrioridadProceso.setText("Prioridad: " + enEjecucion.getPrioridad());
-            lblDeadlineProceso.setText("Deadline: " + enEjecucion.getDeadlineRestante() + " ms");
+            lblDeadlineProceso.setText("Deadline: " + enEjecucion.getDeadlineRestante() + " ciclos");
         } else {
             lblCpuEstado.setText("CPU: Ociosa | Modo: " + pc.getCpu().getModo() + " | PC: " + pc.getCpu().getPc());
             lblPrioridadProceso.setText("Prioridad: -");
@@ -130,11 +134,10 @@ public class PanelComputador extends JPanel {
     }
 
     private void cambiarPoliticaSimulacion(TipoPolitica nuevaPolitica) {
-        if (pcAsociado != null && pcAsociado.getPlanificador() != null) {
-            // Se invoca cambiarPolitica pasando el ciclo actual (0 por defecto si no hay reloj global expuesto aún)
-            pcAsociado.getPlanificador().cambiarPolitica(nuevaPolitica, 0);
-            System.out.println("Política del Computador " + pcAsociado.getId() + " cambiada a: " + nuevaPolitica);
-        }
+        if (pcAsociado == null || pcAsociado.getPlanificador() == null) return;
+        if (pcAsociado.getPlanificador().getTipoPolitica() == nuevaPolitica) return;
+        long ciclo = pcAsociado.getCluster() != null ? pcAsociado.getCluster().getReloj().getCicloActual() : 0;
+        pcAsociado.getPlanificador().cambiarPolitica(nuevaPolitica, ciclo);
     }
 
     public String getTitulo() { return titulo; }
