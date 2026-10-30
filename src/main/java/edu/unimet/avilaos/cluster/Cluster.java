@@ -14,12 +14,17 @@ public class Cluster {
     private final ListaEnlazada<Computador> computadores = new ListaEnlazada<>();
     private final ListaEnlazada<Buffer> buffers = new ListaEnlazada<>();
     private final RelojGlobal reloj;
-
+    private final RedInterconexion red;
+    /** Latencia de red por defecto, en ciclos. */
+    public static final int LATENCIA_INICIAL = 3;
     public Cluster(int[] ramPorComputador, TipoPolitica politica, int quantum, long duracionCicloMs, RegistroEventos log) {
         if (ramPorComputador == null || ramPorComputador.length < 2) {
             throw new IllegalArgumentException("Se necesitan al menos 2 computadores");
         }
-        this.reloj = new RelojGlobal(duracionCicloMs);
+        this.reloj = new RelojGlobal(duracionCicloMs);       
+ // La red va primero: los procesos que llegan quedan listos antes del tick de su computador
+        this.red = new RedInterconexion(this, LATENCIA_INICIAL, log);
+        reloj.registrar(red);
         for (int i = 0; i < ramPorComputador.length; i++) {
             Computador c = new Computador(i + 1, ramPorComputador[i], politica, quantum, log);
             c.setCluster(this); // Vincula el computador con el cluster
@@ -45,6 +50,10 @@ public class Cluster {
 
     public RelojGlobal getReloj() {
         return reloj;
+    }
+
+    public RedInterconexion getRed() {
+        return red;
     }
 
     public void iniciar() {

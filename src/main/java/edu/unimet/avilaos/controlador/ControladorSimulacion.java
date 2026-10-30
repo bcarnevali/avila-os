@@ -2,6 +2,7 @@ package edu.unimet.avilaos.controlador;
 
 import edu.unimet.avilaos.cluster.Cluster;
 import edu.unimet.avilaos.cluster.Computador;
+import edu.unimet.avilaos.gui.CreadorBuffers;
 import edu.unimet.avilaos.gui.CreadorProcesos;
 import edu.unimet.avilaos.gui.PanelControles;
 import edu.unimet.avilaos.gui.SolicitudProceso;
@@ -9,6 +10,7 @@ import edu.unimet.avilaos.gui.VistaCrearProceso;
 import edu.unimet.avilaos.gui.VistaSimulacion;
 import edu.unimet.avilaos.kernel.PCB;
 import edu.unimet.avilaos.modelo.enums.TipoPolitica;
+import edu.unimet.avilaos.modelo.enums.TipoProceso;
 import javax.swing.Timer;
 
 /**
@@ -16,7 +18,7 @@ import javax.swing.Timer;
  * Crea el Cluster, recibe las solicitudes de la Vista 1, maneja los controles
  * y refresca la Vista 2. La GUI no conoce al Cluster: solo este controlador.
  */
-public class ControladorSimulacion implements CreadorProcesos {
+public class ControladorSimulacion implements CreadorProcesos, CreadorBuffers {
 
     private static final int[] RAM_INICIAL = {256, 256};
     private static final TipoPolitica POLITICA_INICIAL = TipoPolitica.FCFS;
@@ -37,6 +39,7 @@ public class ControladorSimulacion implements CreadorProcesos {
         this.controles = controles;
 
         vistaCrear.setCreador(this);
+        vistaCrear.getPanelCrearBuffer().setCreador(this);
         conectarControles();
         configurar(RAM_INICIAL, POLITICA_INICIAL, QUANTUM_INICIAL, DURACION_INICIAL_MS);
 
@@ -76,6 +79,12 @@ public class ControladorSimulacion implements CreadorProcesos {
                     + ". Nunca podría ser admitido.");
         }
 
+        boolean usaBuffer = s.tipo() == TipoProceso.PRODUCTOR || s.tipo() == TipoProceso.CONSUMIDOR;
+        if (usaBuffer && cluster.getBuffer(s.idBuffer()) == null) {
+            throw new IllegalArgumentException("El buffer \"" + s.idBuffer()
+                    + "\" no existe. Créalo primero en el panel \"Crear buffer\".");
+        }
+
         long ciclo = cluster.getReloj().getCicloActual();
         PCB pcb = new PCB(s.nombre(), s.tipo(), s.prioridad(), s.memoria(),
                 s.instrucciones(), s.deadline(), destino.getId(), ciclo);
@@ -90,6 +99,24 @@ public class ControladorSimulacion implements CreadorProcesos {
                     + " asignado automáticamente al Computador " + destino.getId() + " (el de más memoria libre)");
         }
         destino.crearProceso(pcb, ciclo);
+    }
+
+    // ===================== Buffers =====================
+
+    /** Crea un buffer en el computador anfitrión. Su capacidad ocupa RAM de ese computador. */
+    @Override
+    public void crearBuffer(String id, int capacidad, int idAnfitrion) {
+        if (cluster.getBuffer(id) != null) {
+            throw new IllegalArgumentException("Ya existe un buffer llamado \"" + id + "\".");
+        }
+        Computador anfitrion = buscarComputador(idAnfitrion);
+        if (!anfitrion.getMemoria().cabe(capacidad)) {
+            throw new IllegalArgumentException("El Computador " + idAnfitrion + " solo tiene "
+                    + anfitrion.getMemoria().getLibre() + " de memoria libre y el buffer necesita " + capacidad + ".");
+        }
+        cluster.crearBuffer(id, capacidad, idAnfitrion);
+        vistaSimulacion.getPanelLog().registrar(cluster.getReloj().getCicloActual(), "[ÁvilaOS] Se crea el buffer "
+                + id + " con capacidad " + capacidad + " en el Computador " + idAnfitrion);
     }
 
     /** Balanceo de carga: elige el computador con más memoria libre (en empate, el de menor número). */
@@ -139,12 +166,19 @@ public class ControladorSimulacion implements CreadorProcesos {
         }
     }
 
-    /** Cambia en ejecución la duración del ciclo y el quantum de todos los computadores. */
+    /** Cambia en ejecución la duración del ciclo, el quantum y la latencia de red. Solo registra lo que cambió. */
     private void aplicarParametros() {
         cluster.getReloj().setDuracionCiclo(controles.getDuracionCiclo());
         long ciclo = cluster.getReloj().getCicloActual();
         for (int id = 1; id <= cluster.getCantidad(); id++) {
-            cluster.getComputador(id).getPlanificador().cambiarQuantum(controles.getQuantum(), ciclo);
+            if (cluster.getComputador(id).getPlanificador().getQuantum() != controles.getQuantum()) {
+                cluster.getComputador(id).getPlanificador().cambiarQuantum(controles.getQuantum(), ciclo);
+            }
+        }
+        if (cluster.getRed().getLatencia() != controles.getLatencia()) {
+            cluster.getRed().setLatencia(controles.getLatencia());
+            vistaSimulacion.getPanelLog().registrar(ciclo, "[ÁvilaOS] La latencia de red cambia a "
+                    + controles.getLatencia() + " ciclos");
         }
     }
 

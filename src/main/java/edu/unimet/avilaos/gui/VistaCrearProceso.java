@@ -44,6 +44,7 @@ public class VistaCrearProceso extends JPanel {
     private final CardLayout cardsTipo = new CardLayout();
     private final JPanel panelTipo = new JPanel(cardsTipo);
 
+    private final PanelCrearBuffer panelCrearBuffer = new PanelCrearBuffer();
     private CreadorProcesos creador;
 
     public VistaCrearProceso() {
@@ -75,6 +76,10 @@ public class VistaCrearProceso extends JPanel {
         centro.add(formulario);
         add(centro, BorderLayout.CENTER);
 
+        JPanel este = new JPanel(new BorderLayout());
+        este.add(panelCrearBuffer, BorderLayout.NORTH);
+        add(este, BorderLayout.EAST);
+
         JButton botonCrear = new JButton("Crear proceso");
         botonCrear.addActionListener(e -> crear());
         JPanel sur = new JPanel(new FlowLayout(FlowLayout.CENTER));
@@ -93,10 +98,15 @@ public class VistaCrearProceso extends JPanel {
         this.creador = creador;
     }
 
+    public PanelCrearBuffer getPanelCrearBuffer() {
+        return panelCrearBuffer;
+    }
+
     /**
      * Rehace la lista de computadores según la configuración.
      */
     public final void setCantidadComputadores(int cantidad) {
+        panelCrearBuffer.setCantidadComputadores(cantidad);
         comboComputador.removeAllItems();
         comboComputador.addItem("Automático");
         for (int i = 1; i <= cantidad; i++) {
