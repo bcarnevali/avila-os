@@ -17,6 +17,7 @@ import edu.unimet.avilaos.modelo.enums.MotivoBloqueo;
 import edu.unimet.avilaos.modelo.enums.TipoPolitica;
 import edu.unimet.avilaos.modelo.enums.TipoProceso;
 import edu.unimet.avilaos.sincronizacion.Buffer;
+import edu.unimet.avilaos.sincronizacion.SemaforoSO;
 
 public class Computador implements ComponenteReloj {
 
@@ -52,27 +53,42 @@ public class Computador implements ComponenteReloj {
         if (planificador.descontarDeadlines(actual, ciclo)) {
             actual = null;
         }
+        liberarBuffersDeTerminados(ciclo);
 
-        actual = planificador.planificar(actual, ciclo);
-        cpu.setEnEjecucion(actual);
+        // Un proceso a mitad de una operacion sobre un buffer no se expropia:
+        // la seccion critica (semWait ... semSignal) se completa sin interrupciones del planificador
+        if (actual == null || actual.getPasoBuffer() == 0) {
+            actual = planificador.planificar(actual, ciclo);
+            cpu.setEnEjecucion(actual);
+        }
         metricas.registrarCiclo(actual != null);
 
-        if (actual == null) return;
+        if (actual == null) return; // CPU ociosa en este ciclo
 
-        // 3. Ejecuta una instruccion (modo usuario)
-        cpu.setModo(ModoEjecucion.USUARIO);
-        cpu.ejecutarInstruccion();
-
-        if (actual.leTocaBuffer()) {
-            if (operarBuffer(actual, ciclo)) {
-                cpu.setEnEjecucion(null);
+        // 3a. Operacion del SO sobre un buffer: cada paso cuenta como una instruccion en modo sistema operativo
+        if (actual.getPasoBuffer() > 0) {
+            cpu.setModo(ModoEjecucion.SISTEMA_OPERATIVO);
+            if (ejecutarPasoBuffer(actual, ciclo)) {
+                cpu.setEnEjecucion(null); // se bloqueo: libera la CPU
                 return;
             }
+            if (actual.getPasoBuffer() == 0 && actual.haTerminado()) {
+                planificador.terminar(actual, ciclo);
+                cpu.setEnEjecucion(null);
+            }
+            return;
         }
+
+        // 3b. Instruccion del programa (modo usuario)
+        cpu.setModo(ModoEjecucion.USUARIO);
+        cpu.ejecutarInstruccion();
 
         if (actual.haTerminado()) {
             planificador.terminar(actual, ciclo);
             cpu.setEnEjecucion(null);
+        } else if (actual.leTocaBuffer()) {
+            // A partir del proximo ciclo hace sus operaciones sobre el buffer en modo SO
+            actual.setPasoBuffer(1);
         } else if (actual.leTocaES() && actual.getCiclosParaSatisfacerES() > 0) {
             // 4. Le toca E/S: se bloquea y libera la CPU
             planificador.bloquear(actual, MotivoBloqueo.ES, ciclo);
@@ -81,72 +97,113 @@ public class Computador implements ComponenteReloj {
         }
     }
 
-    private boolean operarBuffer(PCB pcb, long ciclo) {
-        if (cluster == null) return false;
-        Buffer b = cluster.getBuffer(pcb.getIdBuffer());
+    /**
+     * Ejecuta UN paso de la operacion sobre el buffer (algoritmo del anexo, Stallings cap. 5).
+     * Productor: 1 semWait(vacios), 2 semWait(mutex), 3 insertar, 4 semSignal(mutex), 5 semSignal(llenos).
+     * Consumidor: 1 semWait(llenos), 2 semWait(mutex), 3 extraer, 4 semSignal(mutex), 5 semSignal(vacios).
+     * Devuelve true si el proceso se bloqueo. Al despertar repite el mismo paso.
+     */
+    private boolean ejecutarPasoBuffer(PCB pcb, long ciclo) {
+        Buffer b = cluster == null ? null : cluster.getBuffer(pcb.getIdBuffer());
         if (b == null) {
-            if (log != null) {
-                log.registrar(ciclo, "[Computador " + id + "] Error: Buffer '" + pcb.getIdBuffer() + "' no existe para el proceso " + pcb.getId());
-            }
+            registrar(ciclo, "Error: el buffer '" + pcb.getIdBuffer() + "' no existe para el proceso " + pcb);
+            pcb.setPasoBuffer(0);
             return false;
         }
+        boolean productor = pcb.getTipo() == TipoProceso.PRODUCTOR;
+        SemaforoSO espacio = productor ? b.getVacios() : b.getLlenos();
+        SemaforoSO aviso = productor ? b.getLlenos() : b.getVacios();
+        MotivoBloqueo motivoEspacio = productor ? MotivoBloqueo.SEMAFORO_VACIOS : MotivoBloqueo.SEMAFORO_LLENOS;
 
-        // Acceso remoto: el proceso espera la latencia de la red antes de operar sobre el buffer
-        if (b.getIdAnfitrion() != id && !cluster.getRed().yaLlego(pcb)) {
-            pcb.retrocederInstruccion();
-            planificador.bloquear(pcb, MotivoBloqueo.LATENCIA_RED, ciclo);
-            registrar(ciclo, "Proceso " + pcb + " accede al buffer " + b.getId()
-                    + " de forma remota (está en el Computador " + b.getIdAnfitrion() + ")");
-            cluster.getRed().enviar(pcb, b.getIdAnfitrion(), ciclo);
-            return true;
+        switch (pcb.getPasoBuffer()) {
+            case 1:
+                // Acceso remoto: espera la latencia de la red una vez por operacion
+                if (b.getIdAnfitrion() != id && !pcb.isAccesoRemotoPagado()) {
+                    if (!cluster.getRed().yaLlego(pcb)) {
+                        planificador.bloquear(pcb, MotivoBloqueo.LATENCIA_RED, ciclo);
+                        registrar(ciclo, "Proceso " + pcb + " accede al buffer " + b.getId()
+                                + " de forma remota (está en el Computador " + b.getIdAnfitrion() + ")");
+                        cluster.getRed().enviar(pcb, b.getIdAnfitrion(), ciclo);
+                        return true;
+                    }
+                    pcb.setAccesoRemotoPagado(true);
+                }
+                if (!espacio.semWait(pcb)) {
+                    bloquearEnSemaforo(pcb, motivoEspacio, espacio, ciclo);
+                    return true;
+                }
+                pcb.setPasoBuffer(2);
+                return false;
+            case 2:
+                if (!b.getMutex().semWait(pcb)) {
+                    bloquearEnSemaforo(pcb, MotivoBloqueo.SEMAFORO_MUTEX, b.getMutex(), ciclo);
+                    return true;
+                }
+                pcb.setPasoBuffer(3);
+                return false;
+            case 3:
+                if (productor) {
+                    b.insertar(pcb.getId());
+                    metricas.registrarProduccion();
+                    registrar(ciclo, "Proceso " + pcb + " produce en " + b.getId()
+                            + " (" + b.getOcupados() + "/" + b.getCapacidad() + ")");
+                } else {
+                    b.extraer();
+                    metricas.registrarConsumo();
+                    registrar(ciclo, "Proceso " + pcb + " consume de " + b.getId()
+                            + " (" + b.getOcupados() + "/" + b.getCapacidad() + ")");
+                }
+                pcb.registrarElementoProcesado();
+                pcb.setPasoBuffer(4);
+                return false;
+            case 4:
+                despertar(b.getMutex().semSignal(), ciclo);
+                pcb.setPasoBuffer(5);
+                return false;
+            default:
+                despertar(aviso.semSignal(), ciclo);
+                pcb.setPasoBuffer(0);
+                pcb.setAccesoRemotoPagado(false);
+                return false;
         }
+    }
 
-        if (pcb.getTipo() == TipoProceso.PRODUCTOR) {
-            if (!b.getVacios().semWait(pcb)) {
-                pcb.retrocederInstruccion();
-                planificador.bloquear(pcb, MotivoBloqueo.SEMAFORO_VACIOS, ciclo);
-                registrar(ciclo, "Proceso " + pcb + " se bloquea en el semáforo '" + b.getVacios().getNombre() + "'");
-                return true;
+    private void bloquearEnSemaforo(PCB pcb, MotivoBloqueo motivo, SemaforoSO semaforo, long ciclo) {
+        planificador.bloquear(pcb, motivo, ciclo);
+        registrar(ciclo, "Proceso " + pcb + " se bloquea en el semáforo '" + semaforo.getNombre() + "'");
+    }
+
+    /** Revisa si algun proceso murio por deadline (en la CPU o en una cola) a mitad de una operacion. */
+    private void liberarBuffersDeTerminados(long ciclo) {
+        PCB[] terminados = planificador.getTerminados();
+        for (PCB p : terminados) {
+            if (p.getPasoBuffer() > 0) {
+                liberarBuffer(p, p.getPasoBuffer(), ciclo);
+                p.setPasoBuffer(0);
             }
-            if (!b.getMutex().semWait(pcb)) {
-                pcb.retrocederInstruccion();
-                planificador.bloquear(pcb, MotivoBloqueo.SEMAFORO_MUTEX, ciclo);
-                registrar(ciclo, "Proceso " + pcb + " se bloquea en el semáforo '" + b.getMutex().getNombre() + "'");
-                return true;
-            }
-            b.insertar(pcb.getId());
-            pcb.registrarElementoProcesado();
-            metricas.registrarProduccion();
-            if (log != null) {
-                log.registrar(ciclo, "[Computador " + id + "] Proceso " + pcb + " produce en " + b.getId() + " (" + b.getOcupados() + "/" + b.getCapacidad() + ")");
-            }
-            despertar(b.getMutex().semSignal(), ciclo);
-            despertar(b.getLlenos().semSignal(), ciclo);
-            return false;
-        } else if (pcb.getTipo() == TipoProceso.CONSUMIDOR) {
-            if (!b.getLlenos().semWait(pcb)) {
-                pcb.retrocederInstruccion();
-                planificador.bloquear(pcb, MotivoBloqueo.SEMAFORO_LLENOS, ciclo);
-                registrar(ciclo, "Proceso " + pcb + " se bloquea en el semáforo '" + b.getLlenos().getNombre() + "'");
-                return true;
-            }
-            if (!b.getMutex().semWait(pcb)) {
-                pcb.retrocederInstruccion();
-                planificador.bloquear(pcb, MotivoBloqueo.SEMAFORO_MUTEX, ciclo);
-                registrar(ciclo, "Proceso " + pcb + " se bloquea en el semáforo '" + b.getMutex().getNombre() + "'");
-                return true;
-            }
-            b.extraer();
-            pcb.registrarElementoProcesado();
-            metricas.registrarConsumo();
-            if (log != null) {
-                log.registrar(ciclo, "[Computador " + id + "] Proceso " + pcb + " consume de " + b.getId() + " (" + b.getOcupados() + "/" + b.getCapacidad() + ")");
-            }
-            despertar(b.getMutex().semSignal(), ciclo);
-            despertar(b.getVacios().semSignal(), ciclo);
-            return false;
         }
-        return false;
+    }
+
+    /**
+     * El proceso murio por deadline a mitad de una operacion: devuelve los semaforos
+     * que ya habia tomado para no dejar bloqueados a los demas para siempre.
+     */
+    private void liberarBuffer(PCB pcb, int paso, long ciclo) {
+        Buffer b = cluster == null ? null : cluster.getBuffer(pcb.getIdBuffer());
+        if (b == null) return;
+        boolean productor = pcb.getTipo() == TipoProceso.PRODUCTOR;
+        SemaforoSO espacio = productor ? b.getVacios() : b.getLlenos();
+        SemaforoSO aviso = productor ? b.getLlenos() : b.getVacios();
+        if (paso == 3 || paso == 4) {
+            despertar(b.getMutex().semSignal(), ciclo);
+        }
+        if (paso == 2 || paso == 3) {
+            despertar(espacio.semSignal(), ciclo); // no llego a usar el espacio que habia reservado
+        } else if (paso == 4 || paso == 5) {
+            despertar(aviso.semSignal(), ciclo); // el elemento ya esta en el buffer: avisa
+        }
+        registrar(ciclo, "Proceso " + pcb + " muere a mitad de una operación sobre " + b.getId()
+                + ": se liberan sus semáforos");
     }
 
     private void despertar(PCB p, long ciclo) {

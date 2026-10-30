@@ -1,18 +1,19 @@
-/*
- * Click nbfs://nbhost/SystemFileSystem/Templates/Licenses/license-default.txt to change this license
- * Click nbfs://nbhost/SystemFileSystem/Templates/Classes/Class.java to edit this template
- */
 package edu.unimet.avilaos.hardware;
 
 import edu.unimet.avilaos.estructuras.ListaEnlazada;
+import java.util.concurrent.Semaphore;
 
 /**
- *
- * @author mfbal
+ * Reloj global del sistema distribuido. Es un hilo de Java que en cada ciclo
+ * llama tick() de cada componente registrado (la red y cada computador), en orden.
+ * La lista de componentes se protege con un Semaphore; la pausa tambien se
+ * implementa con un Semaphore: el hilo se queda esperando un permiso hasta que se reanuda.
  */
-public class RelojGlobal extends Thread{
-    
+public class RelojGlobal extends Thread {
+
     private final ListaEnlazada<ComponenteReloj> componentes = new ListaEnlazada<>();
+    private final Semaphore mutexComponentes = new Semaphore(1);
+    private final Semaphore permisoReanudar = new Semaphore(0);
     private volatile long cicloActual = 0;
     private volatile long duracionCicloMs;
     private volatile boolean corriendo = true;
@@ -23,28 +24,35 @@ public class RelojGlobal extends Thread{
             throw new IllegalArgumentException("La duración del ciclo debe ser mayor a 0");
         }
         this.duracionCicloMs = duracionCicloMs;
+        setDaemon(true); // no impide cerrar el programa
     }
 
-    public synchronized void registrar(ComponenteReloj componente) {
-        if (componente != null) {
+    public void registrar(ComponenteReloj componente) {
+        if (componente == null) return;
+        mutexComponentes.acquireUninterruptibly();
+        try {
             componentes.agregar(componente);
+        } finally {
+            mutexComponentes.release();
         }
     }
 
-    public synchronized void pausar() {
-        this.pausado = true;
+    public void pausar() {
+        pausado = true;
     }
 
-    public synchronized void reanudar() {
-        this.pausado = false;
-        notifyAll();
+    public void reanudar() {
+        if (pausado) {
+            pausado = false;
+            permisoReanudar.release();
+        }
     }
 
-    public synchronized void detener() {
-        this.corriendo = false;
-        this.pausado = false;
-        notifyAll();
-        this.interrupt();
+    public void detener() {
+        corriendo = false;
+        pausado = false;
+        permisoReanudar.release();
+        interrupt();
     }
 
     public void setDuracionCiclo(long duracionCicloMs) {
@@ -66,23 +74,21 @@ public class RelojGlobal extends Thread{
     public void run() {
         while (corriendo) {
             try {
-                synchronized (this) {
-                    while (pausado && corriendo) {
-                        wait();
-                    }
+                // Pausado: espera el permiso que deja reanudar()
+                while (pausado && corriendo) {
+                    permisoReanudar.acquire();
                 }
                 if (!corriendo) break;
 
                 cicloActual++;
 
-                synchronized (this) {
-                    int n = componentes.tamano();
-                    for (int i = 0; i < n; i++) {
-                        ComponenteReloj comp = componentes.obtener(i);
-                        if (comp != null) {
-                            comp.tick(cicloActual);
-                        }
+                mutexComponentes.acquireUninterruptibly();
+                try {
+                    for (int i = 0; i < componentes.tamano(); i++) {
+                        componentes.obtener(i).tick(cicloActual);
                     }
+                } finally {
+                    mutexComponentes.release();
                 }
 
                 Thread.sleep(duracionCicloMs);
@@ -92,5 +98,4 @@ public class RelojGlobal extends Thread{
             }
         }
     }
-    
 }
