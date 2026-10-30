@@ -112,7 +112,8 @@ public class PanelComputador extends JPanel {
                                + " | Modo: " + pc.getCpu().getModo() 
                                + " | PC: " + pc.getCpu().getPc());
             lblPrioridadProceso.setText("Prioridad: " + enEjecucion.getPrioridad());
-            lblDeadlineProceso.setText("Deadline: " + enEjecucion.getDeadlineRestante() + " ciclos");
+            lblDeadlineProceso.setText("Deadline: " + enEjecucion.getDeadlineRestante() + " ciclos"
+                    + (enEjecucion.getPasoBuffer() > 0 ? "   (operación del SO sobre el buffer " + enEjecucion.getIdBuffer() + ")" : ""));
         } else {
             lblCpuEstado.setText("CPU: Ociosa | Modo: " + pc.getCpu().getModo() + " | PC: " + pc.getCpu().getPc());
             lblPrioridadProceso.setText("Prioridad: -");
@@ -124,7 +125,7 @@ public class PanelComputador extends JPanel {
         int usadaRam = pc.getMemoria().getUsada();
         pbMemoria.setMaximum(totalRam);
         pbMemoria.setValue(usadaRam);
-        pbMemoria.setString("RAM: " + usadaRam + " MB / " + totalRam + " MB");
+        pbMemoria.setString("RAM usada: " + usadaRam + " | libre: " + (totalRam - usadaRam) + " | total: " + totalRam);
 
         // 3. Listas de PCBs por cola
         modeloNuevos.setDatos(pc.getPlanificador().getNuevos());

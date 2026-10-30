@@ -246,6 +246,17 @@ public class PCB {
         return "P" + id + "-H1";
     }
     
+    // ---------- Operacion en curso sobre un buffer ----------
+    /** Proximo paso de la operacion sobre el buffer (1 a 5); 0 si no esta en ninguna. */
+    private int pasoBuffer;
+    /** true si ya espero la latencia de red para la operacion remota en curso. */
+    private boolean accesoRemotoPagado;
+
+    public int getPasoBuffer() { return pasoBuffer; }
+    public void setPasoBuffer(int pasoBuffer) { this.pasoBuffer = pasoBuffer; }
+    public boolean isAccesoRemotoPagado() { return accesoRemotoPagado; }
+    public void setAccesoRemotoPagado(boolean pagado) { this.accesoRemotoPagado = pagado; }
+
     public void retrocederInstruccion() {
     this.pc--;
     this.mar--;
