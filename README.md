@@ -1,16 +1,23 @@
-# ÁvilaOS — Proyecto 1 Sistemas Operativos (UNIMET 2627-1)
+# ÁvilaOS
 
-Simulador de un sistema operativo distribuido en Java.
+Simulador de un sistema operativo distribuido en Java. Proyecto 1 de Sistemas Operativos, UNIMET 2627-1.
 
-**Equipo:** Bettina Carnevali, María Fernanda Ballesteros, Daniela Urdaneta
+**Equipo:** Bettina Carnevali, María Fernanda Ballesteros y Daniela Urdaneta.
 
-## Acuerdos
-- JDK: 25 (todas la misma versión) · NetBeans · proyecto Maven
-- Código en español
-- Paquete base: `edu.unimet.avilaos`
-- Prohibido usar colecciones de `java.util` (ArrayList, Queue, Stack…): usamos las propias de `estructuras`
+**Qué hace**
 
-## Flujo de trabajo
-- `main`: versión final. `develop`: integración.
-- Cada tarea en su rama `feat/...` desde `develop`, con PR revisado por otra integrante.
-- Commits con prefijo: `feat:`, `fix:`, `refactor:`, `docs:`, `chore:`.
+- Clúster de 2 a 8 computadores sincronizados por un reloj global, cada uno con su CPU, memoria, E/S y planificador.
+- Políticas FCFS, Round Robin, EDF y Prioridad apropiativa, cambiables en plena ejecución.
+- Productores y consumidores con buffers acotados y semáforos, locales o remotos con latencia de red.
+- Métricas por computador y del sistema, y configuración guardada en CSV.
+
+**Cómo ejecutarlo**
+
+1. Abrir el proyecto en NetBeans con JDK 25.
+2. Darle Run (clase principal `edu.unimet.avilaos.AvilaOs`).
+
+JFreeChart se descarga solo con Maven.
+
+**Flujo de trabajo**
+
+`main` es la versión entregada y `develop` la de integración. Cada tarea se hizo en su rama con Pull Request revisado por otra integrante, y las tareas y errores se registraron en Issues.
