@@ -17,20 +17,39 @@ public class Cluster {
     private final RedInterconexion red;
     /** Latencia de red por defecto, en ciclos. */
     public static final int LATENCIA_INICIAL = 3;
+    /** Todos los computadores con la misma politica y la latencia por defecto. */
     public Cluster(int[] ramPorComputador, TipoPolitica politica, int quantum, long duracionCicloMs, RegistroEventos log) {
+        this(ramPorComputador, mismaPolitica(politica, ramPorComputador == null ? 0 : ramPorComputador.length),
+                quantum, duracionCicloMs, LATENCIA_INICIAL, log);
+    }
+
+    /** Cada computador con su propia RAM y su propia politica inicial. */
+    public Cluster(int[] ramPorComputador, TipoPolitica[] politicas, int quantum, long duracionCicloMs,
+                   int latencia, RegistroEventos log) {
         if (ramPorComputador == null || ramPorComputador.length < 2) {
             throw new IllegalArgumentException("Se necesitan al menos 2 computadores");
         }
-        this.reloj = new RelojGlobal(duracionCicloMs);       
- // La red va primero: los procesos que llegan quedan listos antes del tick de su computador
-        this.red = new RedInterconexion(this, LATENCIA_INICIAL, log);
+        if (politicas == null || politicas.length != ramPorComputador.length) {
+            throw new IllegalArgumentException("Cada computador necesita su politica");
+        }
+        this.reloj = new RelojGlobal(duracionCicloMs);
+        // La red va primero: los procesos que llegan quedan listos antes del tick de su computador
+        this.red = new RedInterconexion(this, latencia, log);
         reloj.registrar(red);
         for (int i = 0; i < ramPorComputador.length; i++) {
-            Computador c = new Computador(i + 1, ramPorComputador[i], politica, quantum, log);
+            Computador c = new Computador(i + 1, ramPorComputador[i], politicas[i], quantum, log);
             c.setCluster(this); // Vincula el computador con el cluster
             computadores.agregar(c);
             reloj.registrar(c);
         }
+    }
+
+    private static TipoPolitica[] mismaPolitica(TipoPolitica politica, int cantidad) {
+        TipoPolitica[] arreglo = new TipoPolitica[cantidad];
+        for (int i = 0; i < cantidad; i++) {
+            arreglo[i] = politica;
+        }
+        return arreglo;
     }
 
     public Computador getComputador(int id) {

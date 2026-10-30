@@ -2,10 +2,16 @@ package edu.unimet.avilaos.controlador;
 
 import edu.unimet.avilaos.cluster.Cluster;
 import edu.unimet.avilaos.cluster.Computador;
+import edu.unimet.avilaos.configuracion.BufferInicial;
+import edu.unimet.avilaos.configuracion.ConfiguracionSimulacion;
+import edu.unimet.avilaos.configuracion.GestorConfiguracion;
+import edu.unimet.avilaos.configuracion.ReceptorConfiguracion;
+import edu.unimet.avilaos.estructuras.ListaEnlazada;
 import edu.unimet.avilaos.gui.CreadorBuffers;
 import edu.unimet.avilaos.gui.CreadorProcesos;
 import edu.unimet.avilaos.gui.PanelControles;
 import edu.unimet.avilaos.gui.SolicitudProceso;
+import edu.unimet.avilaos.gui.VistaConfiguracion;
 import edu.unimet.avilaos.gui.VistaCrearProceso;
 import edu.unimet.avilaos.gui.VistaSimulacion;
 import edu.unimet.avilaos.kernel.PCB;
@@ -18,12 +24,7 @@ import javax.swing.Timer;
  * Crea el Cluster, recibe las solicitudes de la Vista 1, maneja los controles
  * y refresca la Vista 2. La GUI no conoce al Cluster: solo este controlador.
  */
-public class ControladorSimulacion implements CreadorProcesos, CreadorBuffers {
-
-    private static final int[] RAM_INICIAL = {256, 256};
-    private static final TipoPolitica POLITICA_INICIAL = TipoPolitica.FCFS;
-    private static final int QUANTUM_INICIAL = 3;
-    private static final int DURACION_INICIAL_MS = 500;
+public class ControladorSimulacion implements CreadorProcesos, CreadorBuffers, ReceptorConfiguracion {
 
     private final VistaCrearProceso vistaCrear;
     private final VistaSimulacion vistaSimulacion;
@@ -31,9 +32,13 @@ public class ControladorSimulacion implements CreadorProcesos, CreadorBuffers {
 
     private Cluster cluster;
     private boolean iniciado;
+    private ConfiguracionSimulacion configuracionActual;
+    /** Lo que se ha creado en esta simulacion, para poder guardarlo como carga inicial. */
+    private ListaEnlazada<SolicitudProceso> procesosCreados = new ListaEnlazada<>();
+    private ListaEnlazada<BufferInicial> buffersCreados = new ListaEnlazada<>();
 
-    public ControladorSimulacion(VistaCrearProceso vistaCrear, VistaSimulacion vistaSimulacion,
-                                 PanelControles controles) {
+    public ControladorSimulacion(VistaConfiguracion vistaConfiguracion, VistaCrearProceso vistaCrear,
+                                 VistaSimulacion vistaSimulacion, PanelControles controles) {
         this.vistaCrear = vistaCrear;
         this.vistaSimulacion = vistaSimulacion;
         this.controles = controles;
@@ -41,27 +46,79 @@ public class ControladorSimulacion implements CreadorProcesos, CreadorBuffers {
         vistaCrear.setCreador(this);
         vistaCrear.getPanelCrearBuffer().setCreador(this);
         conectarControles();
-        configurar(RAM_INICIAL, POLITICA_INICIAL, QUANTUM_INICIAL, DURACION_INICIAL_MS);
+
+        // Si hay un archivo de configuracion guardado, la simulacion arranca con el
+        ConfiguracionSimulacion inicial = ConfiguracionSimulacion.porDefecto();
+        String aviso = null;
+        if (GestorConfiguracion.ARCHIVO_POR_DEFECTO.exists()) {
+            try {
+                inicial = GestorConfiguracion.cargar(GestorConfiguracion.ARCHIVO_POR_DEFECTO);
+                aviso = "[ÁvilaOS] Configuración cargada de " + GestorConfiguracion.ARCHIVO_POR_DEFECTO.getName();
+            } catch (Exception ex) {
+                aviso = "[ÁvilaOS] No se pudo leer " + GestorConfiguracion.ARCHIVO_POR_DEFECTO.getName()
+                        + " (" + ex.getMessage() + "). Se usa la configuración por defecto.";
+            }
+        }
+        aplicarConfiguracion(inicial);
+        if (aviso != null) {
+            vistaSimulacion.getPanelLog().registrar(0, aviso);
+        }
+        vistaConfiguracion.setReceptor(this);
 
         // Refresca la vista desde el hilo de Swing, sin bloquear la simulación
         new Timer(200, e -> refrescar()).start();
     }
 
-    /** Crea un clúster nuevo. Si había uno corriendo, lo detiene. */
-    public final void configurar(int[] ramPorComputador, TipoPolitica politica, int quantum, int duracionMs) {
+    // ===================== Configuración =====================
+
+    /**
+     * Crea un clúster nuevo con la configuración (si había uno corriendo, lo detiene)
+     * y crea la carga inicial de buffers y procesos.
+     */
+    @Override
+    public final void aplicarConfiguracion(ConfiguracionSimulacion c) {
+        c.validar();
         if (cluster != null) {
             cluster.getReloj().detener();
         }
-        cluster = new Cluster(ramPorComputador, politica, quantum, duracionMs, vistaSimulacion.getPanelLog());
+        cluster = new Cluster(c.getRamPorComputador(), c.getPoliticas(), c.getQuantum(),
+                c.getDuracionCicloMs(), c.getLatencia(), vistaSimulacion.getPanelLog());
+        configuracionActual = c;
+        procesosCreados = new ListaEnlazada<>();
+        buffersCreados = new ListaEnlazada<>();
         iniciado = false;
+
         vistaSimulacion.cargarCluster(cluster);
         vistaCrear.setCantidadComputadores(cluster.getCantidad());
-        controles.setQuantum(quantum);
-        controles.setDuracionCiclo(duracionMs);
+        controles.setQuantum(c.getQuantum());
+        controles.setDuracionCiclo(c.getDuracionCicloMs());
+        controles.setLatencia(c.getLatencia());
         controles.getBotonIniciar().setEnabled(true);
         controles.getBotonPausar().setEnabled(false);
         controles.getBotonPausar().setText("Pausar");
         controles.setCiclo(0);
+
+        // Primero los buffers, porque los productores y consumidores los necesitan
+        for (int i = 0; i < c.getBuffers().tamano(); i++) {
+            BufferInicial b = c.getBuffers().obtener(i);
+            crearBuffer(b.id(), b.capacidad(), b.idAnfitrion());
+        }
+        for (int i = 0; i < c.getProcesos().tamano(); i++) {
+            crearProceso(c.getProcesos().obtener(i));
+        }
+    }
+
+    @Override
+    public ConfiguracionSimulacion getConfiguracionActual() {
+        return configuracionActual;
+    }
+
+    @Override
+    public ConfiguracionSimulacion capturarCargaActual() {
+        ConfiguracionSimulacion carga = new ConfiguracionSimulacion();
+        carga.setProcesos(procesosCreados);
+        carga.setBuffers(buffersCreados);
+        return carga;
     }
 
     // ===================== Vista 1: crear procesos =====================
@@ -99,6 +156,7 @@ public class ControladorSimulacion implements CreadorProcesos, CreadorBuffers {
                     + " asignado automáticamente al Computador " + destino.getId() + " (el de más memoria libre)");
         }
         destino.crearProceso(pcb, ciclo);
+        procesosCreados.agregar(s);
     }
 
     // ===================== Buffers =====================
@@ -115,6 +173,7 @@ public class ControladorSimulacion implements CreadorProcesos, CreadorBuffers {
                     + anfitrion.getMemoria().getLibre() + " de memoria libre y el buffer necesita " + capacidad + ".");
         }
         cluster.crearBuffer(id, capacidad, idAnfitrion);
+        buffersCreados.agregar(new BufferInicial(id, capacidad, idAnfitrion));
         vistaSimulacion.getPanelLog().registrar(cluster.getReloj().getCicloActual(), "[ÁvilaOS] Se crea el buffer "
                 + id + " con capacidad " + capacidad + " en el Computador " + idAnfitrion);
     }

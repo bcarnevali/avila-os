@@ -47,4 +47,5 @@ public class PanelControles extends JPanel {
     public int getLatencia() { return (Integer) spinnerLatencia.getValue(); }
     public void setDuracionCiclo(int ms) { spinnerDuracion.setValue(ms); }
     public void setQuantum(int quantum) { spinnerQuantum.setValue(quantum); }
+    public void setLatencia(int latencia) { spinnerLatencia.setValue(latencia); }
 }

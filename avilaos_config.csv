@@ -1,0 +1,7 @@
+# Configuracion de AvilaOS
+parametro,duracion_ms,500
+parametro,quantum,3
+parametro,latencia,3
+computador,1,326,ROUND_ROBIN
+computador,2,746,PRIORIDAD_APROPIATIVA
+computador,3,256,FCFS
