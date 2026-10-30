@@ -10,6 +10,7 @@ public class AvilaOs {
         SwingUtilities.invokeLater(() -> {
             VentanaPrincipal ventana = new VentanaPrincipal();
             new ControladorSimulacion(
+                ventana.getVistaConfiguracion(),
                 ventana.getVistaCrearProceso(),
                 ventana.getVistaSimulacion(),
                 ventana.getPanelControles()
