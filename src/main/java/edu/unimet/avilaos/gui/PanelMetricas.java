@@ -1,77 +1,84 @@
 package edu.unimet.avilaos.gui;
 
+import edu.unimet.avilaos.cluster.Cluster;
+import edu.unimet.avilaos.metricas.FuenteMetricas;
 import edu.unimet.avilaos.metricas.Metricas;
+import edu.unimet.avilaos.metricas.MetricasSistema;
 import java.awt.BorderLayout;
 import java.awt.Dimension;
-import java.awt.GridLayout;
 import javax.swing.BorderFactory;
-import javax.swing.JLabel;
 import javax.swing.JPanel;
+import javax.swing.JScrollPane;
+import javax.swing.JTable;
 import org.jfree.chart.ChartFactory;
 import org.jfree.chart.ChartPanel;
 import org.jfree.chart.JFreeChart;
 import org.jfree.chart.plot.PlotOrientation;
 import org.jfree.data.category.DefaultCategoryDataset;
 
-/** Metricas de rendimiento de un computador, con el grafico de uso de CPU en el tiempo. */
+/**
+ * Metricas de rendimiento: una tabla con cada computador y el sistema completo,
+ * y un solo grafico con la utilizacion de la CPU de cada computador en el tiempo.
+ */
 public class PanelMetricas extends JPanel {
 
     /** Cuantos ciclos se ven a la vez en el grafico. */
     private static final int MAX_PUNTOS = 40;
 
-    private final JLabel lblThroughput = new JLabel("Throughput: 0.00 proc/ciclo");
-    private final JLabel lblUtilizacionCpu = new JLabel("Utilización CPU: 0.0%");
-    private final JLabel lblTiempoRespuesta = new JLabel("Respuesta promedio: 0.0 ciclos");
-    private final JLabel lblCumplimientoDeadlines = new JLabel("Deadlines cumplidos: 100.0%");
-    private final JLabel lblEquidad = new JLabel("Equidad (Jain): 1.00");
-    private final JLabel lblProducidosConsumidos = new JLabel("Producidos: 0 | Consumidos: 0");
-    private final JLabel lblTiempoBloqueado = new JLabel("Bloqueo prom. en semáforos: 0.0 ciclos");
-
+    private final ModeloTablaMetricas modeloTabla = new ModeloTablaMetricas();
     private final DefaultCategoryDataset dataset = new DefaultCategoryDataset();
     private long ultimoCiclo = -1;
 
-    public PanelMetricas(String titulo) {
+    public PanelMetricas() {
         setLayout(new BorderLayout(10, 10));
-        setBorder(BorderFactory.createTitledBorder(titulo));
+        setBorder(BorderFactory.createTitledBorder("Métricas de rendimiento"));
 
-        JPanel panelEtiquetas = new JPanel(new GridLayout(4, 2, 10, 4));
-        panelEtiquetas.add(lblThroughput);
-        panelEtiquetas.add(lblUtilizacionCpu);
-        panelEtiquetas.add(lblTiempoRespuesta);
-        panelEtiquetas.add(lblCumplimientoDeadlines);
-        panelEtiquetas.add(lblEquidad);
-        panelEtiquetas.add(lblProducidosConsumidos);
-        panelEtiquetas.add(lblTiempoBloqueado);
-        add(panelEtiquetas, BorderLayout.NORTH);
+        JTable tabla = new JTable(modeloTabla);
+        JScrollPane scrollTabla = new JScrollPane(tabla);
+        scrollTabla.setPreferredSize(new Dimension(400, 95));
+        add(scrollTabla, BorderLayout.NORTH);
 
         JFreeChart chart = ChartFactory.createLineChart(
-                "Uso de CPU por ciclo",
+                "Utilización de la CPU de cada computador",
                 "Ciclo",
-                "Utilización (%)",
+                "Utilización acumulada (%)",
                 dataset,
                 PlotOrientation.VERTICAL,
-                false, true, false
+                true, true, false
         );
         ChartPanel chartPanel = new ChartPanel(chart);
         chartPanel.setPreferredSize(new Dimension(400, 200));
         add(chartPanel, BorderLayout.CENTER);
     }
 
-    /** Se llama desde el hilo de Swing (Timer del controlador) en cada refresco. */
-    public void actualizar(Metricas m, long cicloActual) {
-        lblThroughput.setText(String.format("Throughput: %.2f proc/ciclo", m.getThroughput()));
-        lblUtilizacionCpu.setText(String.format("Utilización CPU: %.1f%%", m.getUtilizacionCpu()));
-        lblTiempoRespuesta.setText(String.format("Respuesta promedio: %.1f ciclos", m.getTiempoRespuestaPromedio()));
-        lblCumplimientoDeadlines.setText(String.format("Deadlines cumplidos: %.1f%%", m.getPorcentajeDeadlinesCumplidos()));
-        lblEquidad.setText(String.format("Equidad (Jain): %.2f", m.getIndiceEquidad()));
-        lblProducidosConsumidos.setText("Producidos: " + m.getElementosProducidos()
-                + " | Consumidos: " + m.getElementosConsumidos());
-        lblTiempoBloqueado.setText(String.format("Bloqueo prom. en semáforos: %.1f ciclos", m.getBloqueoPromedioSemaforo()));
+    /** Vacia el grafico (al cargar un cluster nuevo). */
+    public void reiniciar() {
+        dataset.clear();
+        ultimoCiclo = -1;
+    }
 
-        // Un punto por ciclo nuevo; se descartan los mas viejos para que el grafico no crezca sin limite
-        if (cicloActual > 0 && cicloActual != ultimoCiclo) {
-            ultimoCiclo = cicloActual;
-            dataset.addValue(m.getUtilizacionCpu(), "Uso CPU (%)", Long.valueOf(cicloActual));
+    /** Se llama desde el hilo de Swing (Timer del controlador) en cada refresco. */
+    public void actualizar(Cluster cluster) {
+        int n = cluster.getCantidad();
+        Metricas[] porComputador = new Metricas[n];
+        String[] nombres = new String[n + 1];
+        FuenteMetricas[] filas = new FuenteMetricas[n + 1];
+        for (int i = 0; i < n; i++) {
+            porComputador[i] = cluster.getComputador(i + 1).getMetricas();
+            nombres[i] = "Computador " + (i + 1);
+            filas[i] = porComputador[i];
+        }
+        nombres[n] = "Sistema completo";
+        filas[n] = new MetricasSistema(porComputador);
+        modeloTabla.setDatos(nombres, filas);
+
+        // Un punto por ciclo nuevo, una linea por computador; se descartan los ciclos mas viejos
+        long ciclo = cluster.getReloj().getCicloActual();
+        if (ciclo > 0 && ciclo != ultimoCiclo) {
+            ultimoCiclo = ciclo;
+            for (int i = 0; i < n; i++) {
+                dataset.addValue(porComputador[i].getUtilizacionCpu(), nombres[i], Long.valueOf(ciclo));
+            }
             while (dataset.getColumnCount() > MAX_PUNTOS) {
                 dataset.removeColumn(0);
             }

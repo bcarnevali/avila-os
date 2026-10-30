@@ -8,7 +8,7 @@ import java.util.concurrent.Semaphore;
  * Protegida con Semaphore de Java porque la escribe el hilo del reloj
  * y la lee el hilo de la GUI.
  */
-public class Metricas {
+public class Metricas implements FuenteMetricas {
 
     private final Semaphore mutex = new Semaphore(1);
 
@@ -244,5 +244,77 @@ public class Metricas {
             mutex.release();
         }
     }
-}
+    // ---------- Contadores crudos, para calcular las metricas del sistema completo ----------
 
+    public long getCiclosCpuOcupada() {
+        mutex.acquireUninterruptibly();
+        try {
+            return ciclosCpuOcupada;
+        } finally {
+            mutex.release();
+        }
+    }
+
+    public long getSumaRespuesta() {
+        mutex.acquireUninterruptibly();
+        try {
+            return sumaRespuesta;
+        } finally {
+            mutex.release();
+        }
+    }
+
+    public int getCantidadRespuestas() {
+        mutex.acquireUninterruptibly();
+        try {
+            return cantidadRespuestas;
+        } finally {
+            mutex.release();
+        }
+    }
+
+    public double getSumaEspera() {
+        mutex.acquireUninterruptibly();
+        try {
+            return sumaEspera;
+        } finally {
+            mutex.release();
+        }
+    }
+
+    public double getSumaEsperaCuadrados() {
+        mutex.acquireUninterruptibly();
+        try {
+            return sumaEsperaCuadrados;
+        } finally {
+            mutex.release();
+        }
+    }
+
+    public int getCantidadEsperas() {
+        mutex.acquireUninterruptibly();
+        try {
+            return cantidadEsperas;
+        } finally {
+            mutex.release();
+        }
+    }
+
+    public long getSumaBloqueoSemaforo() {
+        mutex.acquireUninterruptibly();
+        try {
+            return sumaBloqueoSemaforo;
+        } finally {
+            mutex.release();
+        }
+    }
+
+    public int getCantidadBloqueosSemaforo() {
+        mutex.acquireUninterruptibly();
+        try {
+            return cantidadBloqueosSemaforo;
+        } finally {
+            mutex.release();
+        }
+    }
+}

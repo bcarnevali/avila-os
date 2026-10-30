@@ -16,6 +16,8 @@ public class Buffer {
     private int frente;
     private int fin;
     private int ocupados;
+    private int producidos;
+    private int consumidos;
 
     private final SemaforoSO vacios;
     private final SemaforoSO llenos;
@@ -46,6 +48,7 @@ public class Buffer {
             elementos[fin] = idProductor;
             fin = (fin + 1) % capacidad;
             ocupados++;
+            producidos++;
         } finally {
             mutexJava.release();
         }
@@ -57,6 +60,7 @@ public class Buffer {
             int idProductor = elementos[frente];
             frente = (frente + 1) % capacidad;
             ocupados--;
+            consumidos++;
             return idProductor;
         } finally {
             mutexJava.release();
@@ -92,6 +96,26 @@ public class Buffer {
                 copia[i] = elementos[(frente + i) % capacidad];
             }
             return copia;
+        } finally {
+            mutexJava.release();
+        }
+    }
+
+    /** Elementos que se han insertado en este buffer desde que se creo. */
+    public int getProducidos() {
+        mutexJava.acquireUninterruptibly();
+        try {
+            return producidos;
+        } finally {
+            mutexJava.release();
+        }
+    }
+
+    /** Elementos que se han extraido de este buffer desde que se creo. */
+    public int getConsumidos() {
+        mutexJava.acquireUninterruptibly();
+        try {
+            return consumidos;
         } finally {
             mutexJava.release();
         }
