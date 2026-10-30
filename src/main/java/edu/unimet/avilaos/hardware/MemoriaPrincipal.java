@@ -1,0 +1,107 @@
+package edu.unimet.avilaos.hardware;
+
+import java.util.concurrent.Semaphore;
+
+/**
+ * * Memoria principal (RAM) de un computador. * La usan los procesos y los
+ * buffers que viven en este computador. * El acceso está protegido con un
+ * Semaphore de Java porque la leen * el hilo del reloj y el hilo de la GUI al
+ * mismo tiempo.
+ */
+public class MemoriaPrincipal {
+
+    private final int capacidad;
+    private int usada;
+    private final Semaphore mutex = new Semaphore(1);
+
+    public MemoriaPrincipal(int capacidad) {
+        if (capacidad <= 0) {
+            throw new IllegalArgumentException("La capacidad de memoria debe ser mayor que 0");
+        }
+        this.capacidad = capacidad;
+        this.usada = 0;
+    }
+
+    /**
+     * Intenta reservar memoria. Devuelve true si había espacio suficiente.
+     */
+    public boolean reservar(int cantidad) {
+        if (cantidad <= 0) {
+            throw new IllegalArgumentException("La cantidad a reservar debe ser mayor que 0");
+        }
+        mutex.acquireUninterruptibly();
+        try {
+            if (capacidad - usada >= cantidad) {
+                usada += cantidad;
+                return true;
+            }
+            return false;
+        } finally {
+            mutex.release();
+        }
+    }
+
+    /**
+     * Libera memoria previamente reservada.
+     */
+    public void liberar(int cantidad) {
+        if (cantidad <= 0) {
+            throw new IllegalArgumentException("La cantidad a liberar debe ser mayor que 0");
+        }
+        mutex.acquireUninterruptibly();
+        try {
+            if (cantidad > usada) {
+                throw new IllegalStateException("Se intenta liberar más memoria de la que está en uso");
+            }
+            usada -= cantidad;
+        } finally {
+            mutex.release();
+        }
+    }
+
+    /**
+     * Indica si cabe una reserva de ese tamaño, sin reservarla.
+     */
+    public boolean cabe(int cantidad) {
+        mutex.acquireUninterruptibly();
+        try {
+            return capacidad - usada >= cantidad;
+        } finally {
+            mutex.release();
+        }
+    }
+
+    public int getCapacidad() {
+        return capacidad;
+    }
+
+    public int getUsada() {
+        mutex.acquireUninterruptibly();
+        try {
+            return usada;
+        } finally {
+            mutex.release();
+        }
+    }
+
+    public int getLibre() {
+        mutex.acquireUninterruptibly();
+        try {
+            return capacidad - usada;
+        } finally {
+            mutex.release();
+        }
+    }
+
+    /**
+     * Porcentaje de uso entre 0 y 100, para la GUI.
+     */
+    public double getPorcentajeUso() {
+        mutex.acquireUninterruptibly();
+        try {
+            return (usada * 100.0) / capacidad;
+        } finally {
+            mutex.release();
+        }
+    }
+}

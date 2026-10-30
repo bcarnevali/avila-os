@@ -1,16 +1,21 @@
-/*
- * Click nbfs://nbhost/SystemFileSystem/Templates/Licenses/license-default.txt to change this license
- */
-
 package edu.unimet.avilaos;
 
-/**
- *
- * @author bettinacarnevali
- */
+import edu.unimet.avilaos.controlador.ControladorSimulacion;
+import edu.unimet.avilaos.gui.VentanaPrincipal;
+import javax.swing.SwingUtilities;
+
 public class AvilaOs {
 
     public static void main(String[] args) {
-        System.out.println("Hello World!");
+        SwingUtilities.invokeLater(() -> {
+            VentanaPrincipal ventana = new VentanaPrincipal();
+            new ControladorSimulacion(
+                ventana.getVistaConfiguracion(),
+                ventana.getVistaCrearProceso(),
+                ventana.getVistaSimulacion(),
+                ventana.getPanelControles()
+            );
+            ventana.setVisible(true);
+        });
     }
 }
