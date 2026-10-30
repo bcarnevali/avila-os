@@ -16,6 +16,7 @@ public class PanelBuffers extends JPanel {
 
     private final JLabel lblSemaforos = new JLabel("Mutex: 1 | Llenos: 0 | Vacíos: 0");
     private final JLabel lblContenido = new JLabel("Contenido: [ ]");
+    private final JLabel lblContadores = new JLabel("Producidos: 0 | Consumidos: 0");
     private final JProgressBar pbCapacidad = new JProgressBar(0, 100);
     private final ModeloTablaPCB modeloBloqueadosBuffer = new ModeloTablaPCB();
 
@@ -23,12 +24,13 @@ public class PanelBuffers extends JPanel {
         setLayout(new BorderLayout(5, 5));
         setBorder(BorderFactory.createTitledBorder(nombreBuffer));
 
-        JPanel panelInfo = new JPanel(new GridLayout(3, 1, 5, 5));
+        JPanel panelInfo = new JPanel(new GridLayout(4, 1, 5, 5));
         panelInfo.add(lblSemaforos);
         pbCapacidad.setStringPainted(true);
         pbCapacidad.setString("Ocupación: 0 / 0");
         panelInfo.add(pbCapacidad);
         panelInfo.add(lblContenido);
+        panelInfo.add(lblContadores);
         add(panelInfo, BorderLayout.NORTH);
 
         JPanel panelTabla = new JPanel(new BorderLayout());
@@ -42,6 +44,8 @@ public class PanelBuffers extends JPanel {
         lblSemaforos.setText("Mutex: " + b.getMutex().getValor()
                 + " | Llenos: " + b.getLlenos().getValor()
                 + " | Vacíos: " + b.getVacios().getValor());
+
+        lblContadores.setText("Producidos: " + b.getProducidos() + " | Consumidos: " + b.getConsumidos());
 
         int ocupados = b.getOcupados();
         pbCapacidad.setMaximum(b.getCapacidad());

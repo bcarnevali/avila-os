@@ -18,11 +18,10 @@ public class VistaSimulacion extends JPanel {
 
     private final JPanel panelComputadores = new JPanel();
     private final PanelLog panelLog = new PanelLog();
-    private final JPanel panelMetricas = new JPanel();
+    private final PanelMetricas panelMetricas = new PanelMetricas();
     private final JPanel panelBuffers = new JPanel();
 
     private PanelComputador[] panelesPc = new PanelComputador[0];
-    private PanelMetricas[] panelesMetricas = new PanelMetricas[0];
     private PanelBuffers[] panelesBuffers = new PanelBuffers[0];
 
     public VistaSimulacion() {
@@ -30,7 +29,7 @@ public class VistaSimulacion extends JPanel {
 
         JTabbedPane pestanas = new JTabbedPane();
         pestanas.addTab("Log de eventos", panelLog);
-        pestanas.addTab("Métricas", new JScrollPane(panelMetricas));
+        pestanas.addTab("Métricas", panelMetricas);
         pestanas.addTab("Buffers", new JScrollPane(panelBuffers));
         pestanas.setPreferredSize(new Dimension(0, 300));
 
@@ -40,26 +39,21 @@ public class VistaSimulacion extends JPanel {
         add(splitPane, BorderLayout.CENTER);
     }
 
-    /** Crea un panel de computador y uno de metricas por cada computador del cluster. */
+    /** Crea un panel por cada computador del cluster y reinicia las metricas. */
     public void cargarCluster(Cluster cluster) {
         if (cluster == null) return;
         int total = cluster.getCantidad();
 
         panelComputadores.removeAll();
         panelComputadores.setLayout(new GridLayout(1, total, 10, 10));
-        panelMetricas.removeAll();
-        panelMetricas.setLayout(new GridLayout(1, total, 10, 10));
+        panelMetricas.reiniciar();
 
         panelesPc = new PanelComputador[total];
-        panelesMetricas = new PanelMetricas[total];
         for (int i = 1; i <= total; i++) {
             Computador pc = cluster.getComputador(i);
             panelesPc[i - 1] = new PanelComputador("Computador " + pc.getId());
             panelesPc[i - 1].asociarComputador(pc);
             panelComputadores.add(panelesPc[i - 1]);
-
-            panelesMetricas[i - 1] = new PanelMetricas("Computador " + pc.getId());
-            panelMetricas.add(panelesMetricas[i - 1]);
         }
 
         panelesBuffers = new PanelBuffers[0];
@@ -72,15 +66,14 @@ public class VistaSimulacion extends JPanel {
     /** Refresca todo lo visible. Lo llama el Timer del controlador (hilo de Swing). */
     public void actualizarDatos(Cluster cluster) {
         if (cluster == null) return;
-        long ciclo = cluster.getReloj().getCicloActual();
-
         for (int i = 1; i <= cluster.getCantidad() && i - 1 < panelesPc.length; i++) {
             Computador pc = cluster.getComputador(i);
             if (pc != null) {
                 panelesPc[i - 1].actualizarDatos(pc);
-                panelesMetricas[i - 1].actualizar(pc.getMetricas(), ciclo);
             }
         }
+
+        panelMetricas.actualizar(cluster);
 
         Buffer[] buffers = cluster.getBuffers();
         if (buffers.length != panelesBuffers.length) {
