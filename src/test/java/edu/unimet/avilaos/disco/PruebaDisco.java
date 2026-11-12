@@ -33,6 +33,9 @@ public class PruebaDisco {
         disco.agregarBloques(34, 2);
         verificar("notas.txt crece: 34 → 35 → 36 → 4 → 5", texto(disco.getCadena(34)).equals("34 → 35 → 36 → 4 → 5"));
 
+        disco.renombrarOcupante(34, "/usuarios/apuntes.txt");
+        verificar("al renombrar cambia el ocupante de toda la cadena", "/usuarios/apuntes.txt".equals(disco.getOcupante(5)));
+
         boolean rechazado = false;
         try {
             disco.asignarArchivoEn(35, "/x.txt", 1);

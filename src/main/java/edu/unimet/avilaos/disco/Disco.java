@@ -147,6 +147,19 @@ public class Disco implements ComponenteReloj {
         }
     }
 
+    /** Cambia el nombre que aparece como ocupante en toda la cadena (cuando se renombra un archivo o su directorio). */
+    public void renombrarOcupante(int primerBloque, String nuevoNombre) {
+        bloquear();
+        try {
+            validarInicioDeCadena(primerBloque);
+            for (int b = primerBloque; b != SIN_SIGUIENTE; b = siguiente[b]) {
+                ocupante[b] = nuevoNombre;
+            }
+        } finally {
+            mutex.release();
+        }
+    }
+
     // ===================== Swap =====================
 
     /** true si caben "cantidad" bloques más en el área de intercambio. */
