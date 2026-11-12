@@ -22,6 +22,9 @@ public class PanelControles extends JPanel {
     public PanelControles() {
         setLayout(new FlowLayout(FlowLayout.CENTER, 10, 5));
         setBorder(BorderFactory.createEtchedBorder());
+        ValidadorCampos.soloEnteros(spinnerDuracion);
+        ValidadorCampos.soloEnteros(spinnerQuantum);
+        ValidadorCampos.soloEnteros(spinnerLatencia);
         add(botonIniciar);
         add(botonPausar);
         add(new JLabel("Duración del ciclo (ms):"));
@@ -42,9 +45,11 @@ public class PanelControles extends JPanel {
     public JButton getBotonIniciar() { return botonIniciar; }
     public JButton getBotonPausar() { return botonPausar; }
     public JButton getBotonAplicar() { return botonAplicar; }
-    public int getDuracionCiclo() { return (Integer) spinnerDuracion.getValue(); }
-    public int getQuantum() { return (Integer) spinnerQuantum.getValue(); }
-    public int getLatencia() { return (Integer) spinnerLatencia.getValue(); }
+
+    /** Lanzan IllegalArgumentException con un mensaje si lo escrito no es válido. */
+    public int getDuracionCiclo() { return ValidadorCampos.leer(spinnerDuracion, "Duración del ciclo (ms)"); }
+    public int getQuantum() { return ValidadorCampos.leer(spinnerQuantum, "Quantum"); }
+    public int getLatencia() { return ValidadorCampos.leer(spinnerLatencia, "Latencia (ciclos)"); }
     public void setDuracionCiclo(int ms) { spinnerDuracion.setValue(ms); }
     public void setQuantum(int quantum) { spinnerQuantum.setValue(quantum); }
     public void setLatencia(int latencia) { spinnerLatencia.setValue(latencia); }

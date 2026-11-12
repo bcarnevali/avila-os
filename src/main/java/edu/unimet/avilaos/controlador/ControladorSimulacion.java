@@ -17,6 +17,7 @@ import edu.unimet.avilaos.gui.VistaSimulacion;
 import edu.unimet.avilaos.kernel.PCB;
 import edu.unimet.avilaos.modelo.enums.TipoPolitica;
 import edu.unimet.avilaos.modelo.enums.TipoProceso;
+import javax.swing.JOptionPane;
 import javax.swing.Timer;
 
 /**
@@ -227,17 +228,30 @@ public class ControladorSimulacion implements CreadorProcesos, CreadorBuffers, R
 
     /** Cambia en ejecución la duración del ciclo, el quantum y la latencia de red. Solo registra lo que cambió. */
     private void aplicarParametros() {
-        cluster.getReloj().setDuracionCiclo(controles.getDuracionCiclo());
+        // Se leen y validan los tres valores antes de cambiar nada
+        int duracion;
+        int quantum;
+        int latencia;
+        try {
+            duracion = controles.getDuracionCiclo();
+            quantum = controles.getQuantum();
+            latencia = controles.getLatencia();
+        } catch (IllegalArgumentException ex) {
+            JOptionPane.showMessageDialog(controles, ex.getMessage() + "\nNo se aplicó ningún cambio.",
+                    "Dato inválido", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+        cluster.getReloj().setDuracionCiclo(duracion);
         long ciclo = cluster.getReloj().getCicloActual();
         for (int id = 1; id <= cluster.getCantidad(); id++) {
-            if (cluster.getComputador(id).getPlanificador().getQuantum() != controles.getQuantum()) {
-                cluster.getComputador(id).getPlanificador().cambiarQuantum(controles.getQuantum(), ciclo);
+            if (cluster.getComputador(id).getPlanificador().getQuantum() != quantum) {
+                cluster.getComputador(id).getPlanificador().cambiarQuantum(quantum, ciclo);
             }
         }
-        if (cluster.getRed().getLatencia() != controles.getLatencia()) {
-            cluster.getRed().setLatencia(controles.getLatencia());
+        if (cluster.getRed().getLatencia() != latencia) {
+            cluster.getRed().setLatencia(latencia);
             vistaSimulacion.getPanelLog().registrar(ciclo, "[ÁvilaOS] La latencia de red cambia a "
-                    + controles.getLatencia() + " ciclos");
+                    + latencia + " ciclos");
         }
     }
 
