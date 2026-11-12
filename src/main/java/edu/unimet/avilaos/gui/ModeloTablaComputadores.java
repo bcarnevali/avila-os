@@ -6,6 +6,9 @@ import javax.swing.table.AbstractTableModel;
 /** Tabla editable de la configuracion: RAM y politica inicial de cada computador. */
 public class ModeloTablaComputadores extends AbstractTableModel {
 
+    public static final int RAM_MINIMA = 16;
+    public static final int RAM_MAXIMA = 100000;
+
     private static final String[] COLUMNAS = {"Computador", "RAM", "Política inicial"};
 
     private int[] ram = {256, 256};
@@ -66,7 +69,7 @@ public class ModeloTablaComputadores extends AbstractTableModel {
     public void setValueAt(Object valor, int fila, int columna) {
         if (columna == 1 && valor instanceof Integer) {
             int v = (Integer) valor;
-            if (v >= 16 && v <= 100000) {
+            if (v >= RAM_MINIMA && v <= RAM_MAXIMA) {
                 ram[fila] = v;
             }
         } else if (columna == 2 && valor instanceof TipoPolitica) {

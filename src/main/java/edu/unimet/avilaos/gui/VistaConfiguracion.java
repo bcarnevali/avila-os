@@ -60,12 +60,19 @@ public class VistaConfiguracion extends JPanel {
         agregarFila(parametros, 2, "Latencia de la red (ciclos)", spinnerLatencia);
         agregarFila(parametros, 3, "Número de computadores", spinnerComputadores);
         spinnerComputadores.addChangeListener(e -> modeloComputadores.setCantidad((Integer) spinnerComputadores.getValue()));
+        ValidadorCampos.soloEnteros(spinnerDuracion);
+        ValidadorCampos.soloEnteros(spinnerQuantum);
+        ValidadorCampos.soloEnteros(spinnerLatencia);
+        ValidadorCampos.soloEnteros(spinnerComputadores);
 
         // RAM y politica de cada computador
         JTable tabla = new JTable(modeloComputadores);
+        tabla.getColumnModel().getColumn(1).setCellEditor(ValidadorCampos.editorEntero("RAM",
+                ModeloTablaComputadores.RAM_MINIMA, ModeloTablaComputadores.RAM_MAXIMA));
         tabla.getColumnModel().getColumn(2).setCellEditor(new DefaultCellEditor(new JComboBox<>(TipoPolitica.values())));
         JPanel computadores = new JPanel(new BorderLayout());
-        computadores.setBorder(BorderFactory.createTitledBorder("Computadores (RAM entre 16 y 100000)"));
+        computadores.setBorder(BorderFactory.createTitledBorder("Computadores (RAM entre " + ModeloTablaComputadores.RAM_MINIMA
+                + " y " + ModeloTablaComputadores.RAM_MAXIMA + ")"));
         computadores.add(new JScrollPane(tabla), BorderLayout.CENTER);
 
         JPanel parametrosArriba = new JPanel(new BorderLayout());
@@ -124,9 +131,10 @@ public class VistaConfiguracion extends JPanel {
     /** Arma la configuracion con lo que hay en pantalla. */
     private ConfiguracionSimulacion leer() {
         ConfiguracionSimulacion c = new ConfiguracionSimulacion();
-        c.setDuracionCicloMs((Integer) spinnerDuracion.getValue());
-        c.setQuantum((Integer) spinnerQuantum.getValue());
-        c.setLatencia((Integer) spinnerLatencia.getValue());
+        c.setDuracionCicloMs(ValidadorCampos.leer(spinnerDuracion, "Duración del ciclo (ms)"));
+        c.setQuantum(ValidadorCampos.leer(spinnerQuantum, "Quantum de Round Robin"));
+        c.setLatencia(ValidadorCampos.leer(spinnerLatencia, "Latencia de la red (ciclos)"));
+        ValidadorCampos.leer(spinnerComputadores, "Número de computadores");
         c.setComputadores(modeloComputadores.getRam(), modeloComputadores.getPoliticas());
         c.setProcesos(procesos);
         c.setBuffers(buffers);
