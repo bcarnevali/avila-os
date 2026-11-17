@@ -4,6 +4,8 @@
  */
 package edu.unimet.avilaos.cluster;
 
+import edu.unimet.avilaos.disco.Disco;
+import edu.unimet.avilaos.disco.SolicitudES;
 import edu.unimet.avilaos.hardware.CPU;
 import edu.unimet.avilaos.hardware.ComponenteReloj;
 import edu.unimet.avilaos.hardware.DispositivoES;
@@ -11,9 +13,12 @@ import edu.unimet.avilaos.hardware.MemoriaPrincipal;
 import edu.unimet.avilaos.kernel.PCB;
 import edu.unimet.avilaos.kernel.Planificador;
 import edu.unimet.avilaos.kernel.RegistroEventos;
+import edu.unimet.avilaos.kernel.ServicioArchivos;
 import edu.unimet.avilaos.metricas.Metricas;
+import edu.unimet.avilaos.modelo.enums.EstadoProceso;
 import edu.unimet.avilaos.modelo.enums.ModoEjecucion;
 import edu.unimet.avilaos.modelo.enums.MotivoBloqueo;
+import edu.unimet.avilaos.modelo.enums.OperacionES;
 import edu.unimet.avilaos.modelo.enums.TipoPolitica;
 import edu.unimet.avilaos.modelo.enums.TipoProceso;
 import edu.unimet.avilaos.sincronizacion.Buffer;
@@ -29,6 +34,11 @@ public class Computador implements ComponenteReloj {
     private final DispositivoES dispositivoES = new DispositivoES();
     private final RegistroEventos log;
     private Cluster cluster;
+
+    // Disco local y sistema de archivos (Proyecto 2)
+    private Disco disco;
+    private ServicioArchivos archivos;
+    private Disco.ReceptorDisco receptorSwap;
 
     public Computador(int id, int tamanoRam, TipoPolitica politica, int quantum, RegistroEventos log) {
         this.id = id;
@@ -79,7 +89,29 @@ public class Computador implements ComponenteReloj {
             return;
         }
 
-        // 3b. Instruccion del programa (modo usuario)
+        // Ya no le quedan instrucciones (por ejemplo, un proceso de E/S que volvió del disco)
+        if (actual.haTerminado()) {
+            planificador.terminar(actual, ciclo);
+            cpu.setEnEjecucion(null);
+            return;
+        }
+
+        // 3b. Proceso de E/S sobre un archivo: su primera instrucción es la llamada al
+        // sistema de archivos (modo SO). Genera la solicitud al disco y se bloquea por E/S.
+        if (actual.esProcesoDeArchivo() && !actual.isSolicitudDiscoHecha()) {
+            cpu.setModo(ModoEjecucion.SISTEMA_OPERATIVO);
+            cpu.ejecutarInstruccion();
+            actual.setSolicitudDiscoHecha(true);
+            if (pedirAlDisco(actual, ciclo)) {
+                cpu.setEnEjecucion(null); // se bloqueó: libera la CPU
+            } else if (actual.haTerminado()) {
+                planificador.terminar(actual, ciclo);
+                cpu.setEnEjecucion(null);
+            }
+            return;
+        }
+
+        // 3c. Instruccion del programa (modo usuario)
         cpu.setModo(ModoEjecucion.USUARIO);
         cpu.ejecutarInstruccion();
 
@@ -224,6 +256,76 @@ public class Computador implements ComponenteReloj {
             log.registrar(ciclo, "[Computador " + id + "] " + mensaje);
         }
     }
+
+    // ===================== Disco y sistema de archivos =====================
+
+    /**
+     * Conecta el disco local y el sistema de archivos. Desde aquí el computador
+     * recibe las solicitudes que el disco termina.
+     */
+    public void conectarDisco(Disco disco, ServicioArchivos archivos) {
+        this.disco = disco;
+        this.archivos = archivos;
+        disco.setReceptor(this::solicitudTerminada);
+    }
+
+    /** Quién atiende las solicitudes de swap terminadas (el planificador a mediano plazo). */
+    public void setReceptorSwap(Disco.ReceptorDisco receptorSwap) {
+        this.receptorSwap = receptorSwap;
+    }
+
+    /**
+     * Arma la solicitud del proceso de E/S, lo bloquea y la manda a la cola del disco.
+     * Devuelve true si el proceso quedó bloqueado esperando al disco; false si la
+     * operación fue rechazada (el motivo queda en el log y el proceso sigue).
+     */
+    private boolean pedirAlDisco(PCB pcb, long ciclo) {
+        if (disco == null || archivos == null) {
+            registrar(ciclo, "Operación rechazada para " + pcb + ": el computador no tiene disco");
+            return false;
+        }
+        SolicitudES solicitud;
+        try {
+            solicitud = archivos.prepararSolicitud(pcb, ciclo);
+        } catch (IllegalStateException | IllegalArgumentException e) {
+            registrar(ciclo, "Operación " + pcb.getOperacionArchivo() + " sobre " + pcb.getRutaArchivo()
+                    + " rechazada para " + pcb + ": " + e.getMessage());
+            return false;
+        }
+        registrar(ciclo, "Proceso " + pcb + " pide al disco " + pcb.getOperacionArchivo() + " de "
+                + pcb.getRutaArchivo() + " (bloque " + solicitud.getBloque() + ")");
+        planificador.bloquear(pcb, MotivoBloqueo.ES, ciclo);
+        disco.getPlanificador().encolar(solicitud, ciclo);
+        return true;
+    }
+
+    /** El disco terminó una solicitud: aplica el efecto y despierta al proceso. */
+    private void solicitudTerminada(SolicitudES solicitud, long ciclo) {
+        OperacionES op = solicitud.getOperacion();
+        if (op == OperacionES.SWAP_IN || op == OperacionES.SWAP_OUT) {
+            if (receptorSwap != null) {
+                receptorSwap.solicitudTerminada(solicitud, ciclo);
+            }
+            return;
+        }
+        PCB pcb = solicitud.getProceso();
+        if (pcb == null) {
+            return;
+        }
+        if (pcb.getEstado() == EstadoProceso.TERMINADO) {
+            registrar(ciclo, "El disco terminó " + op + " de " + pcb + ", pero el proceso ya había terminado"
+                    + " (venció su deadline): no se aplica la operación");
+            return;
+        }
+        try {
+            archivos.completarOperacion(pcb, solicitud, ciclo);
+        } catch (IllegalStateException | IllegalArgumentException e) {
+            registrar(ciclo, "La operación " + op + " de " + pcb + " no se pudo completar: " + e.getMessage());
+        }
+        planificador.desbloquear(pcb, ciclo);
+    }
+
+    public Disco getDisco() { return disco; }
 
     public void setCluster(Cluster cluster) { this.cluster = cluster; }
     public Cluster getCluster() { return cluster; }
