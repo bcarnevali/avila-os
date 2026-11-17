@@ -24,6 +24,7 @@ public class PanelCrearBuffer extends JPanel {
     public PanelCrearBuffer() {
         setLayout(new BorderLayout(5, 5));
         setBorder(BorderFactory.createTitledBorder("Crear buffer"));
+        ValidadorCampos.soloEnteros(campoCapacidad, 1, 1000);
 
         JPanel formulario = new JPanel(new GridBagLayout());
         agregarFila(formulario, 0, "Nombre", campoId);
@@ -60,16 +61,7 @@ public class PanelCrearBuffer extends JPanel {
             if (id.length() > 20 || id.contains(",")) {
                 throw new IllegalArgumentException("El nombre del buffer debe tener máximo 20 caracteres y sin comas.");
             }
-            String texto = campoCapacidad.getText().trim();
-            int capacidad;
-            try {
-                capacidad = Integer.parseInt(texto);
-            } catch (NumberFormatException ex) {
-                throw new IllegalArgumentException("La capacidad debe ser un número entero.");
-            }
-            if (capacidad < 1 || capacidad > 1000) {
-                throw new IllegalArgumentException("La capacidad debe estar entre 1 y 1000.");
-            }
+            int capacidad = ValidadorCampos.leer(campoCapacidad, "Capacidad", 1, 1000);
             int anfitrion = comboAnfitrion.getSelectedIndex() + 1;
             if (creador == null) {
                 throw new IllegalStateException("Todavía no hay un sistema conectado.");

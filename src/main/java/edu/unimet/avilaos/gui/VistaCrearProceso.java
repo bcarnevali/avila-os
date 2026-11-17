@@ -51,6 +51,16 @@ public class VistaCrearProceso extends JPanel {
         setLayout(new BorderLayout(10, 10));
         setBorder(BorderFactory.createEmptyBorder(15, 15, 15, 15));
 
+        // Los campos numéricos solo aceptan dígitos y se marcan en rojo fuera de rango
+        ValidadorCampos.soloEnteros(campoInstrucciones, 1, 1_000_000);
+        ValidadorCampos.soloEnteros(campoMemoria, 1, 1_000_000);
+        ValidadorCampos.soloEnteros(campoPrioridad, 1, 10);
+        ValidadorCampos.soloEnteros(campoDeadline, 1, 1_000_000);
+        ValidadorCampos.soloEnteros(campoCiclosEntreES, 0, 1_000_000);
+        ValidadorCampos.soloEnteros(campoCiclosES, 0, 1_000_000);
+        ValidadorCampos.soloEnteros(campoCiclosPorElemento, 1, 1_000_000);
+        ValidadorCampos.soloEnteros(campoElementos, 1, 1_000_000);
+
         add(new JLabel("Vista 1: Crear proceso", SwingConstants.CENTER), BorderLayout.NORTH);
 
         JPanel formulario = new JPanel(new GridBagLayout());
@@ -213,21 +223,7 @@ public class VistaCrearProceso extends JPanel {
     }
 
     private int leerEntero(JTextField campo, String nombreCampo, int minimo, int maximo) {
-        String texto = campo.getText().trim();
-        if (texto.isEmpty()) {
-            throw new IllegalArgumentException("El campo \"" + nombreCampo + "\" es obligatorio.");
-        }
-        int valor;
-        try {
-            valor = Integer.parseInt(texto);
-        } catch (NumberFormatException ex) {
-            throw new IllegalArgumentException("El campo \"" + nombreCampo + "\" debe ser un número entero.");
-        }
-        if (valor < minimo || valor > maximo) {
-            throw new IllegalArgumentException("El campo \"" + nombreCampo
-                    + "\" debe estar entre " + minimo + " y " + maximo + ".");
-        }
-        return valor;
+        return ValidadorCampos.leer(campo, nombreCampo, minimo, maximo);
     }
 
     private int leerComputador() {
