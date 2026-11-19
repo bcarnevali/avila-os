@@ -31,7 +31,8 @@ public class VistaCrearProceso extends JPanel {
     private final JTextField campoMemoria = new JTextField(20);
     private final JTextField campoPrioridad = new JTextField(20);
     private final JTextField campoDeadline = new JTextField(20);
-    private final JComboBox<TipoProceso> comboTipo = new JComboBox<>(TipoProceso.values());
+    private final JComboBox<TipoProceso> comboTipo = new JComboBox<>(new TipoProceso[] {
+            TipoProceso.CPU_BOUND, TipoProceso.IO_BOUND, TipoProceso.PRODUCTOR, TipoProceso.CONSUMIDOR});
     private final JComboBox<String> comboComputador = new JComboBox<>();
 
     private final JTextField campoCiclosEntreES = new JTextField(20);
