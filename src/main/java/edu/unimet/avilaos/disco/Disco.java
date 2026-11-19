@@ -255,6 +255,44 @@ public class Disco implements ComponenteReloj {
         try { return esSwap[bloque]; } finally { mutex.release(); }
     }
 
+    /** Copia de quién ocupa cada bloque (null si está libre), para dibujar el mapa. */
+    public String[] getOcupantes() {
+        bloquear();
+        try {
+            String[] copia = new String[totalBloques];
+            System.arraycopy(ocupante, 0, copia, 0, totalBloques);
+            return copia;
+        } finally {
+            mutex.release();
+        }
+    }
+
+    /** Copia del siguiente bloque de cada bloque (SIN_SIGUIENTE si es el último o está libre). */
+    public int[] getSiguientes() {
+        bloquear();
+        try {
+            int[] copia = new int[totalBloques];
+            for (int i = 0; i < totalBloques; i++) {
+                copia[i] = ocupante[i] == null ? SIN_SIGUIENTE : siguiente[i];
+            }
+            return copia;
+        } finally {
+            mutex.release();
+        }
+    }
+
+    /** Copia de qué bloques pertenecen al área de intercambio. */
+    public boolean[] getMarcasSwap() {
+        bloquear();
+        try {
+            boolean[] copia = new boolean[totalBloques];
+            System.arraycopy(esSwap, 0, copia, 0, totalBloques);
+            return copia;
+        } finally {
+            mutex.release();
+        }
+    }
+
     public int getTotalBloques() { return totalBloques; }
     public int getTamanoSwap() { return tamanoSwap; }
 

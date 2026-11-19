@@ -38,12 +38,15 @@ public class PlanificadorDisco {
     private int velocidad;
 
     private SolicitudES actual;
+    /** La política que eligió la solicitud en curso (cuenta para esa política al terminar). */
+    private TipoPoliticaDisco politicaDeActual;
     private boolean transfiriendo;
     private int bloquesRestantes;
 
     // Métricas
     private long desplazamientoTotal;
     private int atendidas;
+    private int elegidas;
     private long sumaEsperas;
     private final int[] atendidasPorPolitica = new int[TipoPoliticaDisco.values().length];
 
@@ -138,7 +141,8 @@ public class PlanificadorDisco {
         actual.setCicloInicio(ciclo);
         transfiriendo = false;
         sumaEsperas += actual.getEspera();
-        atendidasPorPolitica[politica.getTipo().ordinal()]++;
+        elegidas++;
+        politicaDeActual = politica.getTipo();
         log.registrar(ciclo, "[Disco] Atiende la solicitud de " + actual.getSolicitante()
                 + " en el bloque " + actual.getBloque() + " (" + nombre(politica.getTipo())
                 + "), cabezal en " + posicion);
@@ -203,6 +207,7 @@ public class PlanificadorDisco {
         actual = null;
         transfiriendo = false;
         atendidas++;
+        atendidasPorPolitica[politicaDeActual.ordinal()]++;
         log.registrar(ciclo, "[Disco] Termina " + terminada.getOperacion() + " de "
                 + terminada.getSolicitante() + " en el bloque " + terminada.getBloque());
         return terminada;
@@ -300,16 +305,13 @@ public class PlanificadorDisco {
     public double getEsperaPromedio() {
         bloquear();
         try {
-            int elegidas = 0;
-            for (int n : atendidasPorPolitica) {
-                elegidas += n;
-            }
             return elegidas == 0 ? 0 : (double) sumaEsperas / elegidas;
         } finally {
             mutex.release();
         }
     }
 
+    /** Solicitudes terminadas que había elegido cada política. */
     public int getAtendidasCon(TipoPoliticaDisco tipo) {
         bloquear();
         try { return atendidasPorPolitica[tipo.ordinal()]; } finally { mutex.release(); }

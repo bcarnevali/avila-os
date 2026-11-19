@@ -1,8 +1,10 @@
 package edu.unimet.avilaos.cluster;
 
+import edu.unimet.avilaos.disco.Disco;
 import edu.unimet.avilaos.estructuras.ListaEnlazada;
 import edu.unimet.avilaos.hardware.RelojGlobal;
 import edu.unimet.avilaos.kernel.RegistroEventos;
+import edu.unimet.avilaos.kernel.ServicioArchivos;
 import edu.unimet.avilaos.modelo.enums.TipoPolitica;
 import edu.unimet.avilaos.sincronizacion.Buffer;
 
@@ -26,8 +28,9 @@ public class Cluster {
     /** Cada computador con su propia RAM y su propia politica inicial. */
     public Cluster(int[] ramPorComputador, TipoPolitica[] politicas, int quantum, long duracionCicloMs,
                    int latencia, RegistroEventos log) {
-        if (ramPorComputador == null || ramPorComputador.length < 2) {
-            throw new IllegalArgumentException("Se necesitan al menos 2 computadores");
+        // En el Proyecto 2 se trabaja con un solo computador
+        if (ramPorComputador == null || ramPorComputador.length < 1) {
+            throw new IllegalArgumentException("Se necesita al menos un computador");
         }
         if (politicas == null || politicas.length != ramPorComputador.length) {
             throw new IllegalArgumentException("Cada computador necesita su politica");
@@ -73,6 +76,15 @@ public class Cluster {
 
     public RedInterconexion getRed() {
         return red;
+    }
+
+    /**
+     * Instala el disco local en el computador: el disco pasa a ser un componente
+     * más del reloj y el computador recibe sus solicitudes terminadas.
+     */
+    public void instalarDisco(int idComputador, Disco disco, ServicioArchivos archivos) {
+        getComputador(idComputador).conectarDisco(disco, archivos);
+        reloj.registrar(disco);
     }
 
     public void iniciar() {
