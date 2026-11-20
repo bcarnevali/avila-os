@@ -23,6 +23,7 @@ import edu.unimet.avilaos.modelo.enums.TipoPolitica;
 import edu.unimet.avilaos.modelo.enums.TipoProceso;
 import edu.unimet.avilaos.sincronizacion.Buffer;
 import edu.unimet.avilaos.sincronizacion.SemaforoSO;
+import edu.unimet.avilaos.kernel.PlanificadorMedianoPlazo;
 
 public class Computador implements ComponenteReloj {
 
@@ -39,12 +40,15 @@ public class Computador implements ComponenteReloj {
     private Disco disco;
     private ServicioArchivos archivos;
     private Disco.ReceptorDisco receptorSwap;
+    private final PlanificadorMedianoPlazo medianoPlazo;
 
     public Computador(int id, int tamanoRam, TipoPolitica politica, int quantum, RegistroEventos log) {
         this.id = id;
         this.memoria = new MemoriaPrincipal(tamanoRam);
         this.planificador = new Planificador(id, memoria, metricas, politica, quantum, log);
         this.log = log;
+        this.medianoPlazo = new PlanificadorMedianoPlazo(id, memoria, planificador, log);
+        this.receptorSwap = medianoPlazo;
     }
 
     @Override
@@ -64,6 +68,12 @@ public class Computador implements ComponenteReloj {
             actual = null;
         }
         liberarBuffersDeTerminados(ciclo);
+        
+        if (planificador.descontarDeadlines(actual, ciclo)) {
+            actual = null;
+        }
+        liberarBuffersDeTerminados(ciclo);
+        medianoPlazo.evaluar(ciclo);
 
         // Un proceso a mitad de una operacion sobre un buffer no se expropia:
         // la seccion critica (semWait ... semSignal) se completa sin interrupciones del planificador
@@ -266,6 +276,7 @@ public class Computador implements ComponenteReloj {
     public void conectarDisco(Disco disco, ServicioArchivos archivos) {
         this.disco = disco;
         this.archivos = archivos;
+        this.medianoPlazo.setDisco(disco);
         disco.setReceptor(this::solicitudTerminada);
     }
 
@@ -334,5 +345,6 @@ public class Computador implements ComponenteReloj {
     public MemoriaPrincipal getMemoria() { return memoria; }
     public Metricas getMetricas() { return metricas; }
     public Planificador getPlanificador() { return planificador; }
+    public PlanificadorMedianoPlazo getMedianoPlazo() { return medianoPlazo; }
     public DispositivoES getDispositivoES() { return dispositivoES; }
 }
