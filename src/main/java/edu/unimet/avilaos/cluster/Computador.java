@@ -68,11 +68,6 @@ public class Computador implements ComponenteReloj {
             actual = null;
         }
         liberarBuffersDeTerminados(ciclo);
-        
-        if (planificador.descontarDeadlines(actual, ciclo)) {
-            actual = null;
-        }
-        liberarBuffersDeTerminados(ciclo);
         medianoPlazo.evaluar(ciclo);
 
         // Un proceso a mitad de una operacion sobre un buffer no se expropia:

@@ -36,6 +36,8 @@ public class PlanificadorMedianoPlazo implements Disco.ReceptorDisco {
     private final ListaEnlazada<PCB> entrandoDeSwap = new ListaEnlazada<>();
     /** RAM comprometida por procesos que están saliendo a swap y aún no terminan su transferencia. */
     private int ramEnSwapOut = 0;
+    private int suspensiones = 0;
+    private int reactivaciones = 0;
 
     public PlanificadorMedianoPlazo(int idComputador, MemoriaPrincipal memoria,
                                     Planificador planificador, RegistroEventos log) {
@@ -59,6 +61,14 @@ public class PlanificadorMedianoPlazo implements Disco.ReceptorDisco {
         this.umbralSuspension = umbralSuspension;
         this.umbralReactivacion = umbralReactivacion;
     }
+    
+    public int getSuspensiones() {
+        return suspensiones;
+    }
+
+    public int getReactivaciones() {
+        return reactivaciones;
+    }
 
     // ===================== Evaluación por ciclo =====================
 
@@ -78,15 +88,13 @@ public class PlanificadorMedianoPlazo implements Disco.ReceptorDisco {
     }
 
     private void intentarSwapOut(long ciclo) {
-        int ramEfectivaUsada = Math.max(0, memoria.getUsada() - ramEnSwapOut);
-        double porcentajeEfectivo = (ramEfectivaUsada * 100.0) / memoria.getCapacidad();
         boolean hayNuevosEsperando = planificador.getNuevos().length > 0;
 
-        if (porcentajeEfectivo < umbralSuspension && !hayNuevosEsperando) {
+        if (!hayNuevosEsperando) {
             return;
         }
 
-        PCB victima = seleccionarVictimaSwapOut(porcentajeEfectivo >= umbralSuspension && hayNuevosEsperando);
+        PCB victima = seleccionarVictimaSwapOut(true);
         if (victima == null) {
             return;
         }
@@ -226,6 +234,7 @@ public class PlanificadorMedianoPlazo implements Disco.ReceptorDisco {
             ramEnSwapOut = Math.max(0, ramEnSwapOut - pcb.getMemoriaRequerida());
         }
         memoria.liberar(pcb.getMemoriaRequerida());
+        suspensiones++;
 
         if (pcb.getEstado() == EstadoProceso.TERMINADO) {
             liberarSwapDeProceso(pcb);
@@ -249,6 +258,7 @@ public class PlanificadorMedianoPlazo implements Disco.ReceptorDisco {
         }
 
         if (planificador.reingresarDesdeSwap(pcb, ciclo)) {
+            reactivaciones++;
             registrar(ciclo, "Completa SWAP_IN de " + pcb + ": reingresa a cola de LISTOS");
         } else {
             memoria.liberar(pcb.getMemoriaRequerida());
