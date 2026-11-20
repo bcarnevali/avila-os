@@ -34,6 +34,9 @@ public final class Permisos {
         if (usuario != null && usuario.equals(directorioPadre.getDueno())) {
             return null;
         }
+        if (directorioPadre.getPermiso() == TipoPermiso.PUBLICO) {
+            return null;
+        }
         return "Permiso denegado: solo puedes crear archivos dentro de tus propios directorios.";
     }
 

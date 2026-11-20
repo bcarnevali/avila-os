@@ -17,12 +17,14 @@ public class SistemaArchivos {
         this.mutex = new Semaphore(1);
     }
 
-    private void bloquear() {
+    private void bloquear() {     
         try {
             mutex.acquire();
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
+            throw new IllegalStateException("Interrumpido esperando el sistema de archivos", e);
         }
+ 
     }
 
     public Directorio getRaiz() {
