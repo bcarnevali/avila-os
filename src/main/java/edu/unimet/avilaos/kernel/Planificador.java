@@ -37,6 +37,8 @@ public class Planificador {
     private final Cola<PCB> listos = new Cola<>();
     private final Cola<PCB> bloqueados = new Cola<>();
     private final Cola<PCB> terminados = new Cola<>();
+    private final Cola<PCB> listosSuspendidos = new Cola<>();
+    private final Cola<PCB> bloqueadosSuspendidos = new Cola<>();
 
     private PoliticaPlanificacion politica;
     private Comparador<PCB> orden;
@@ -124,7 +126,9 @@ public class Planificador {
     public void desbloquear(PCB pcb, long ciclo) {
         mutex.acquireUninterruptibly();
         try {
-            if (!bloqueados.eliminar(pcb)) {
+            boolean estabaEnRam = bloqueados.eliminar(pcb);
+            boolean estabaSuspendido = !estabaEnRam && bloqueadosSuspendidos.eliminar(pcb);
+            if (!estabaEnRam && !estabaSuspendido) {
                 return;
             }
             MotivoBloqueo motivo = pcb.getMotivoBloqueo();
@@ -134,8 +138,14 @@ public class Planificador {
                     || motivo == MotivoBloqueo.SEMAFORO_MUTEX) {
                 metricas.registrarBloqueoSemaforo(duracion);
             }
-            registrar(ciclo, "Proceso " + pcb + " se desbloquea tras " + duracion + " ciclos");
-            insertarEnListosSinLock(pcb, ciclo);
+            if (estabaEnRam) {
+                registrar(ciclo, "Proceso " + pcb + " se desbloquea tras " + duracion + " ciclos");
+                insertarEnListosSinLock(pcb, ciclo);
+            } else {
+                pcb.setEstado(EstadoProceso.LISTO_SUSPENDIDO);
+                listosSuspendidos.encolar(pcb);
+                registrar(ciclo, "Proceso " + pcb + " termina su espera en swap y pasa a LISTO_SUSPENDIDO");
+            }
         } finally {
             mutex.release();
         }
@@ -170,6 +180,8 @@ public class Planificador {
             algunoTermino |= descontarEnCola(nuevos, ciclo);
             algunoTermino |= descontarEnCola(listos, ciclo);
             algunoTermino |= descontarEnCola(bloqueados, ciclo);
+            algunoTermino |= descontarEnCola(listosSuspendidos, ciclo);
+            algunoTermino |= descontarEnCola(bloqueadosSuspendidos, ciclo);
             if (algunoTermino) {
                 admitirNuevosSinLock(ciclo);
             }
@@ -214,6 +226,74 @@ public class Planificador {
     public PCB[] getListos() { return copiar(listos); }
     public PCB[] getBloqueados() { return copiar(bloqueados); }
     public PCB[] getTerminados() { return copiar(terminados); }
+    public PCB[] getListosSuspendidos() { return copiar(listosSuspendidos); }
+    public PCB[] getBloqueadosSuspendidos() { return copiar(bloqueadosSuspendidos); }
+    
+    // ===================== Operaciones de suspensión (Mediano Plazo) =====================
+
+    /** Saca un proceso de bloqueados en RAM hacia bloqueados_suspendidos. */
+    public boolean moverABloqueadosSuspendidos(PCB pcb) {
+        mutex.acquireUninterruptibly();
+        try {
+            if (!bloqueados.eliminar(pcb)) {
+                return false;
+            }
+            pcb.setEstado(EstadoProceso.BLOQUEADO_SUSPENDIDO);
+            bloqueadosSuspendidos.encolar(pcb);
+            return true;
+        } finally {
+            mutex.release();
+        }
+    }
+
+    /** Saca un proceso de listos en RAM hacia listos_suspendidos. */
+    public boolean moverAListosSuspendidos(PCB pcb) {
+        mutex.acquireUninterruptibly();
+        try {
+            if (!listos.eliminar(pcb)) {
+                return false;
+            }
+            pcb.setEstado(EstadoProceso.LISTO_SUSPENDIDO);
+            listosSuspendidos.encolar(pcb);
+            return true;
+        } finally {
+            mutex.release();
+        }
+    }
+
+    /** Reingresa un proceso desde listos_suspendidos hacia listos en RAM. */
+    public boolean reingresarDesdeSwap(PCB pcb, long ciclo) {
+        mutex.acquireUninterruptibly();
+        try {
+            if (!listosSuspendidos.eliminar(pcb)) {
+                return false;
+            }
+            insertarEnListosSinLock(pcb, ciclo);
+            return true;
+        } finally {
+            mutex.release();
+        }
+    }
+
+    /** Elimina un proceso de bloqueados_suspendidos (por ejemplo, si falló o canceló). */
+    public boolean eliminarDeBloqueadosSuspendidos(PCB pcb) {
+        mutex.acquireUninterruptibly();
+        try {
+            return bloqueadosSuspendidos.eliminar(pcb);
+        } finally {
+            mutex.release();
+        }
+    }
+
+    /** Permite al mediano plazo intentar admitir nuevos cuando se libera RAM. */
+    public void intentarAdmitirNuevos(long ciclo) {
+        mutex.acquireUninterruptibly();
+        try {
+            admitirNuevosSinLock(ciclo);
+        } finally {
+            mutex.release();
+        }
+    }
 
     public TipoPolitica getTipoPolitica() {
         mutex.acquireUninterruptibly();
@@ -241,7 +321,11 @@ public class Planificador {
     public boolean hayProcesosPendientes() {
         mutex.acquireUninterruptibly();
         try {
-            return !nuevos.estaVacia() || !listos.estaVacia() || !bloqueados.estaVacia();
+            return !nuevos.estaVacia()
+                    || !listos.estaVacia()
+                    || !bloqueados.estaVacia()
+                    || !listosSuspendidos.estaVacia()
+                    || !bloqueadosSuspendidos.estaVacia();
         } finally {
             mutex.release();
         }
@@ -295,7 +379,10 @@ public class Planificador {
     }
 
     private void terminarSinLock(PCB pcb, long ciclo, boolean porDeadline) {
-        boolean teniaMemoria = pcb.getEstado() != EstadoProceso.NUEVO;
+        EstadoProceso estadoAnterior = pcb.getEstado();
+        boolean teniaMemoria = estadoAnterior != EstadoProceso.NUEVO
+                && estadoAnterior != EstadoProceso.LISTO_SUSPENDIDO
+                && estadoAnterior != EstadoProceso.BLOQUEADO_SUSPENDIDO;
         pcb.setEstado(EstadoProceso.TERMINADO);
         pcb.setMotivoBloqueo(MotivoBloqueo.NINGUNO);
         if (teniaMemoria) {

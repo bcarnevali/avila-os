@@ -57,6 +57,7 @@ public class PCB {
     private long cicloInicioBloqueo;
     /** Ciclos que lleva en la CPU en el quantum actual (Round Robin). */
     private int ciclosEnQuantum;
+    private int bloqueSwap = -1;
 
     // Proceso de E/S sobre archivos (Proyecto 2)
     private OperacionES operacionArchivo;
@@ -239,6 +240,8 @@ public class PCB {
     public long getCicloPrimeraEjecucion() { return cicloPrimeraEjecucion; }
     public long getCiclosEsperaTotal() { return ciclosEsperaTotal; }
     public int getCiclosEnQuantum() { return ciclosEnQuantum; }
+    public int getBloqueSwap() { return bloqueSwap; }
+    public long getCicloBloqueo() { return cicloInicioBloqueo; }
 
     // ---------- Setters ----------
     public void setIdComputador(int idComputador) { this.idComputador = idComputador; }
@@ -247,6 +250,8 @@ public class PCB {
     public void setDeadlineRestante(int deadline) { this.deadlineRestante = deadline; }
     public void setPc(int pc) { this.pc = pc; }
     public void setMar(int mar) { this.mar = mar; }
+    public void setBloqueSwap(int bloqueSwap) { this.bloqueSwap = bloqueSwap; }
+    public void setCicloBloqueo(long cicloBloqueo) { this.cicloInicioBloqueo = cicloBloqueo; }
 
     /** Formato del log del enunciado: P3-H1 = proceso 3, su único hilo. */
     /** Para procesos de E/S sobre archivos: la operación, la ruta y (al crear) el tamaño en bloques. */
