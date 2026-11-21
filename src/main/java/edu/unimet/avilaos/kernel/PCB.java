@@ -288,9 +288,6 @@ public class PCB {
         if (bloques < 0) {
             throw new IllegalArgumentException("El tamaño en bloques no puede ser negativo");
         }
-        if (operacion == OperacionES.CREAR && bloques < 1) {
-            throw new IllegalArgumentException("Para crear un archivo hay que indicar al menos un bloque");
-        }
         this.operacionArchivo = operacion;
         this.rutaArchivo = ruta;
         this.bloquesArchivo = bloques;
