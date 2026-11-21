@@ -64,6 +64,10 @@ public class PCB {
     private int bloquesArchivo;
     /** true cuando ya envió su solicitud al disco. */
     private boolean solicitudDiscoHecha;
+    
+    private String usuario = "admin";
+    private boolean administrador = true;
+    private String nuevoNombre;
 
     public PCB(String nombre, TipoProceso tipo, int prioridad, int memoriaRequerida,
                int instruccionesTotales, int deadline, int idComputador, long cicloLlegada) {
@@ -142,6 +146,27 @@ public class PCB {
 
     public boolean terminoInstrucciones() {
         return pc >= instruccionesTotales;
+    }
+    
+    public String getUsuario() {
+        return usuario;
+    }
+
+    public boolean isAdministrador() {
+        return administrador;
+    }
+
+    public void setUsuario(String usuario, boolean administrador) {
+        this.usuario = (usuario == null || usuario.isBlank()) ? "admin" : usuario;
+        this.administrador = administrador;
+    }
+
+    public String getNuevoNombre() {
+        return nuevoNombre;
+    }
+
+    public void setNuevoNombre(String nuevoNombre) {
+        this.nuevoNombre = nuevoNombre;
     }
 
     /** Un productor o consumidor termina al procesar sus elementos; el resto, al acabar sus instrucciones. */
