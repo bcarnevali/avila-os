@@ -23,6 +23,8 @@ public class PanelComputador extends JPanel {
     private final ModeloTablaPCB modeloNuevos = new ModeloTablaPCB();
     private final ModeloTablaPCB modeloListos = new ModeloTablaPCB();
     private final ModeloTablaPCB modeloBloqueados = new ModeloTablaPCB();
+    private final ModeloTablaPCB modeloListosSuspendidos = new ModeloTablaPCB();
+    private final ModeloTablaPCB modeloBloqueadosSuspendidos = new ModeloTablaPCB();
     private final ModeloTablaPCB modeloTerminados = new ModeloTablaPCB();
 
     public PanelComputador(String titulo) {
@@ -66,10 +68,12 @@ public class PanelComputador extends JPanel {
         add(panelSuperior, BorderLayout.NORTH);
 
         // 2. PANEL CENTRAL (Tablas de las Colas del Sistema)
-        JPanel panelColas = new JPanel(new GridLayout(2, 2, 5, 5));
+        JPanel panelColas = new JPanel(new GridLayout(3, 2, 5, 5));
         panelColas.add(crearSubPanelTabla("Nuevos", modeloNuevos));
         panelColas.add(crearSubPanelTabla("Listos", modeloListos));
         panelColas.add(crearSubPanelTabla("Bloqueados", modeloBloqueados));
+        panelColas.add(crearSubPanelTabla("Listo/Suspendido", modeloListosSuspendidos));
+        panelColas.add(crearSubPanelTabla("Bloqueado/Suspendido", modeloBloqueadosSuspendidos));
         panelColas.add(crearSubPanelTabla("Terminados", modeloTerminados));
 
         add(panelColas, BorderLayout.CENTER);
@@ -131,6 +135,8 @@ public class PanelComputador extends JPanel {
         modeloNuevos.setDatos(pc.getPlanificador().getNuevos());
         modeloListos.setDatos(pc.getPlanificador().getListos());
         modeloBloqueados.setDatos(pc.getPlanificador().getBloqueados());
+        modeloListosSuspendidos.setDatos(pc.getPlanificador().getListosSuspendidos());
+        modeloBloqueadosSuspendidos.setDatos(pc.getPlanificador().getBloqueadosSuspendidos());
         modeloTerminados.setDatos(pc.getPlanificador().getTerminados());
     }
 
@@ -146,5 +152,7 @@ public class PanelComputador extends JPanel {
     public ModeloTablaPCB getModeloNuevos() { return modeloNuevos; }
     public ModeloTablaPCB getModeloListos() { return modeloListos; }
     public ModeloTablaPCB getModeloBloqueados() { return modeloBloqueados; }
+    public ModeloTablaPCB getModeloListosSuspendidos() { return modeloListosSuspendidos; }
+    public ModeloTablaPCB getModeloBloqueadosSuspendidos() { return modeloBloqueadosSuspendidos; }
     public ModeloTablaPCB getModeloTerminados() { return modeloTerminados; }
 }
