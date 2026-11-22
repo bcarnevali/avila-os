@@ -7,6 +7,7 @@ import edu.unimet.avilaos.archivos.Permisos;
 import edu.unimet.avilaos.archivos.SistemaArchivos;
 import edu.unimet.avilaos.estructuras.ListaEnlazada;
 import edu.unimet.avilaos.modelo.enums.ModoUsuario;
+import edu.unimet.avilaos.modelo.enums.OperacionES;
 import edu.unimet.avilaos.modelo.enums.TipoPermiso;
 import java.awt.BorderLayout;
 import java.awt.Color;
@@ -14,8 +15,10 @@ import java.awt.Component;
 import java.awt.FlowLayout;
 import java.awt.GridLayout;
 import javax.swing.BorderFactory;
+import javax.swing.JButton;
 import javax.swing.JComboBox;
 import javax.swing.JLabel;
+import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
 import javax.swing.JSplitPane;
@@ -29,9 +32,16 @@ import javax.swing.tree.TreePath;
 public class PanelSistemaArchivos extends JPanel {
 
     private SistemaArchivos sistema;
+    private SolicitanteOperaciones solicitante;
 
     private final JComboBox<ModoUsuario> comboModo = new JComboBox<>(ModoUsuario.values());
     private final JComboBox<String> comboUsuario = new JComboBox<>(new String[]{"user1", "user2"});
+
+    private final JButton btnCrearArchivo = new JButton("Crear archivo");
+    private final JButton btnCrearDirectorio = new JButton("Crear directorio");
+    private final JButton btnLeer = new JButton("Leer");
+    private final JButton btnRenombrar = new JButton("Renombrar");
+    private final JButton btnEliminar = new JButton("Eliminar");
 
     private final DefaultMutableTreeNode nodoRaizVisual = new DefaultMutableTreeNode("/");
     private final DefaultTreeModel modeloArbol = new DefaultTreeModel(nodoRaizVisual);
@@ -50,12 +60,25 @@ public class PanelSistemaArchivos extends JPanel {
         setLayout(new BorderLayout(8, 8));
         setBorder(BorderFactory.createEmptyBorder(8, 8, 8, 8));
 
+        JPanel barraSuperior = new JPanel(new BorderLayout(5, 5));
+
         JPanel barraModo = new JPanel(new FlowLayout(FlowLayout.LEFT));
         barraModo.setBorder(BorderFactory.createTitledBorder("Modo de acceso"));
         barraModo.add(new JLabel("Modo:"));
         barraModo.add(comboModo);
         barraModo.add(new JLabel("Usuario:"));
         barraModo.add(comboUsuario);
+
+        JPanel barraAcciones = new JPanel(new FlowLayout(FlowLayout.LEFT));
+        barraAcciones.setBorder(BorderFactory.createTitledBorder("Operaciones de E/S"));
+        barraAcciones.add(btnCrearArchivo);
+        barraAcciones.add(btnCrearDirectorio);
+        barraAcciones.add(btnLeer);
+        barraAcciones.add(btnRenombrar);
+        barraAcciones.add(btnEliminar);
+
+        barraSuperior.add(barraModo, BorderLayout.WEST);
+        barraSuperior.add(barraAcciones, BorderLayout.CENTER);
 
         comboUsuario.setEnabled(false);
         comboModo.addActionListener(e -> {
@@ -69,7 +92,9 @@ public class PanelSistemaArchivos extends JPanel {
             actualizarDetalleSeleccion();
         });
 
-        add(barraModo, BorderLayout.NORTH);
+        configurarBotones();
+
+        add(barraSuperior, BorderLayout.NORTH);
 
         JScrollPane scrollArbol = new JScrollPane(arbol);
         scrollArbol.setBorder(BorderFactory.createTitledBorder("Árbol de Directorios"));
@@ -99,6 +124,179 @@ public class PanelSistemaArchivos extends JPanel {
     public void asociar(SistemaArchivos sistema) {
         this.sistema = sistema;
         refrescar();
+    }
+
+    public void setSolicitanteOperaciones(SolicitanteOperaciones solicitante) {
+        this.solicitante = solicitante;
+    }
+
+    private void configurarBotones() {
+        btnCrearArchivo.addActionListener(e -> accionCrear(false));
+        btnCrearDirectorio.addActionListener(e -> accionCrear(true));
+        btnLeer.addActionListener(e -> accionLeer());
+        btnRenombrar.addActionListener(e -> accionRenombrar());
+        btnEliminar.addActionListener(e -> accionEliminar());
+    }
+
+    private void accionCrear(boolean esDirectorio) {
+        if (!verificarSistemaListo()) return;
+
+        Directorio padre = obtenerDirectorioDestino();
+        String motivo = Permisos.motivoParaCrear(getModoActual(), getUsuarioActual(), padre);
+        if (motivo != null) {
+            mostrarError(motivo);
+            return;
+        }
+
+        String tipoTexto = esDirectorio ? "directorio" : "archivo";
+        String nombre = JOptionPane.showInputDialog(this,
+                "Nombre del nuevo " + tipoTexto + " dentro de '" + padre.getRuta() + "':",
+                "Crear " + tipoTexto,
+                JOptionPane.QUESTION_MESSAGE);
+        if (nombre == null) return;
+        nombre = nombre.trim();
+        if (nombre.isEmpty() || nombre.contains("/")) {
+            mostrarError("El nombre no puede estar vacío ni contener '/'.");
+            return;
+        }
+
+        String rutaNueva = construirRutaHijo(padre, nombre);
+        if (sistema.buscar(rutaNueva) != null) {
+            mostrarError("Ya existe un elemento en '" + rutaNueva + "'.");
+            return;
+        }
+
+        int bloques = 0;
+        if (!esDirectorio) {
+            String bloquesTxt = JOptionPane.showInputDialog(this,
+                    "Tamaño en bloques para '" + rutaNueva + "':",
+                    "Crear archivo",
+                    JOptionPane.QUESTION_MESSAGE);
+            if (bloquesTxt == null) return;
+            try {
+                bloques = Integer.parseInt(bloquesTxt.trim());
+                if (bloques < 1) {
+                    mostrarError("El tamaño en bloques debe ser al menos 1.");
+                    return;
+                }
+            } catch (NumberFormatException ex) {
+                mostrarError("Debes ingresar un número entero válido de bloques.");
+                return;
+            }
+        }
+
+        enviarSolicitud(OperacionES.CREAR, rutaNueva, bloques, null);
+    }
+
+    private void accionLeer() {
+        if (!verificarSistemaListo()) return;
+
+        EntradaSistemaArchivos sel = obtenerSeleccion();
+        if (sel == null) {
+            mostrarError("Selecciona un archivo o directorio para leer.");
+            return;
+        }
+        String motivo = Permisos.motivoParaLeer(getModoActual(), getUsuarioActual(), sel);
+        if (motivo != null) {
+            mostrarError(motivo);
+            return;
+        }
+
+        enviarSolicitud(OperacionES.LEER, sel.getRuta(), 0, null);
+    }
+
+    private void accionRenombrar() {
+        if (!verificarSistemaListo()) return;
+
+        EntradaSistemaArchivos sel = obtenerSeleccion();
+        if (sel == null) {
+            mostrarError("Selecciona un elemento para renombrar.");
+            return;
+        }
+        String motivo = Permisos.motivoParaRenombrar(getModoActual(), getUsuarioActual(), sel);
+        if (motivo != null) {
+            mostrarError(motivo);
+            return;
+        }
+
+        String nuevoNombre = JOptionPane.showInputDialog(this,
+                "Nuevo nombre para '" + sel.getNombre() + "':",
+                "Renombrar",
+                JOptionPane.QUESTION_MESSAGE);
+        if (nuevoNombre == null) return;
+        nuevoNombre = nuevoNombre.trim();
+        if (nuevoNombre.isEmpty() || nuevoNombre.contains("/")) {
+            mostrarError("El nuevo nombre no puede estar vacío ni contener '/'.");
+            return;
+        }
+        if (sel.getPadre() != null && sel.getPadre().buscarHijo(nuevoNombre) != null) {
+            mostrarError("Ya existe '" + nuevoNombre + "' en '" + sel.getPadre().getRuta() + "'.");
+            return;
+        }
+
+        enviarSolicitud(OperacionES.ACTUALIZAR, sel.getRuta(), 0, nuevoNombre);
+    }
+
+    private void accionEliminar() {
+        if (!verificarSistemaListo()) return;
+
+        EntradaSistemaArchivos sel = obtenerSeleccion();
+        if (sel == null) {
+            mostrarError("Selecciona un elemento para eliminar.");
+            return;
+        }
+        String motivo = Permisos.motivoParaEliminar(getModoActual(), getUsuarioActual(), sel);
+        if (motivo != null) {
+            mostrarError(motivo);
+            return;
+        }
+
+        int conf = JOptionPane.showConfirmDialog(this,
+                "¿Seguro que deseas eliminar '" + sel.getRuta() + "'?",
+                "Confirmar eliminación",
+                JOptionPane.YES_NO_OPTION);
+        if (conf != JOptionPane.YES_OPTION) return;
+
+        enviarSolicitud(OperacionES.ELIMINAR, sel.getRuta(), 0, null);
+    }
+
+    private boolean verificarSistemaListo() {
+        if (sistema == null) {
+            mostrarError("No hay ningún sistema de archivos cargado.");
+            return false;
+        }
+        return true;
+    }
+
+    private Directorio obtenerDirectorioDestino() {
+        EntradaSistemaArchivos sel = obtenerSeleccion();
+        if (sel instanceof Directorio) {
+            return (Directorio) sel;
+        }
+        if (sel != null && sel.getPadre() != null) {
+            return sel.getPadre();
+        }
+        return sistema.getRaiz();
+    }
+
+    private String construirRutaHijo(Directorio padre, String nombre) {
+        String base = padre.getRuta();
+        return "/".equals(base) ? "/" + nombre : base + "/" + nombre;
+    }
+
+    private void enviarSolicitud(OperacionES op, String ruta, int bloques, String nuevoNombre) {
+        if (solicitante != null) {
+            solicitante.solicitarOperacion(op, ruta, bloques, nuevoNombre);
+        } else {
+            JOptionPane.showMessageDialog(this,
+                    "Solicitud lista para enviar al kernel:\nOperación: " + op + "\nRuta: " + ruta,
+                    "Solicitud de E/S",
+                    JOptionPane.INFORMATION_MESSAGE);
+        }
+    }
+
+    private void mostrarError(String mensaje) {
+        JOptionPane.showMessageDialog(this, mensaje, "Operación no permitida", JOptionPane.WARNING_MESSAGE);
     }
 
     public void refrescar() {

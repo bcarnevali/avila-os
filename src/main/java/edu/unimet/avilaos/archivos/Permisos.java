@@ -34,11 +34,22 @@ public final class Permisos {
         if (usuario != null && usuario.equals(directorioPadre.getDueno())) {
             return null;
         }
-        if (directorioPadre.getPermiso() == TipoPermiso.PUBLICO) {
-            return null;
-        }
         return "Permiso denegado: solo puedes crear archivos dentro de tus propios directorios.";
     }
+    
+    public static String motivoParaModificar(ModoUsuario modo, String usuario, EntradaSistemaArchivos entrada) {
+        if (entrada == null) {
+            return "El elemento no existe.";
+        }
+        if (modo == ModoUsuario.ADMINISTRADOR) {
+            return null;
+        }
+        if (usuario != null && usuario.equals(entrada.getDueno())) {
+            return null;
+        }
+        return "Permiso denegado: solo el administrador o el dueño (" + entrada.getDueno() + ") puede modificar '" + entrada.getNombre() + "'.";
+    }
+    
 
     public static String motivoParaEliminar(ModoUsuario modo, String usuario, EntradaSistemaArchivos entrada) {
         if (entrada == null) {
