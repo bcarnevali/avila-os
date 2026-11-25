@@ -123,6 +123,7 @@ public class PanelSistemaArchivos extends JPanel {
 
     public void asociar(SistemaArchivos sistema) {
         this.sistema = sistema;
+        ultimaVista = null;
         refrescar();
     }
 
@@ -299,10 +300,21 @@ public class PanelSistemaArchivos extends JPanel {
         JOptionPane.showMessageDialog(this, mensaje, "Operación no permitida", JOptionPane.WARNING_MESSAGE);
     }
 
+    private String ultimaVista;
+
     public void refrescar() {
         if (sistema == null) {
             return;
         }
+        EntradaSistemaArchivos seleccion = obtenerSeleccion();
+        String rutaSeleccion = seleccion == null ? null : seleccion.getRuta();
+        DefaultMutableTreeNode temporal = new DefaultMutableTreeNode("/");
+        construirNodos(sistema.getRaiz(), temporal);
+        StringBuilder firma = new StringBuilder(getModoActual().name()).append(getUsuarioActual());
+        firmar(temporal, firma);
+        String actual = firma.toString();
+        if (actual.equals(ultimaVista)) return;
+        ultimaVista = actual;
         nodoRaizVisual.removeAllChildren();
         construirNodos(sistema.getRaiz(), nodoRaizVisual);
         modeloArbol.reload();
@@ -310,6 +322,26 @@ public class PanelSistemaArchivos extends JPanel {
             arbol.expandRow(i);
         }
         modeloTabla.actualizar(filtrarArchivosVisibles(sistema.getArchivos()));
+        if (rutaSeleccion != null) {
+            for (int i = 0; i < arbol.getRowCount(); i++) {
+                TreePath path = arbol.getPathForRow(i);
+                Object item = ((DefaultMutableTreeNode) path.getLastPathComponent()).getUserObject();
+                if (item instanceof ItemArbol nodo && rutaSeleccion.equals(nodo.entrada.getRuta())) {
+                    arbol.setSelectionPath(path); break;
+                }
+            }
+        }
+        actualizarDetalleSeleccion();
+    }
+
+    private void firmar(DefaultMutableTreeNode nodo, StringBuilder firma) {
+        Object item = nodo.getUserObject();
+        if (item instanceof ItemArbol n) {
+            EntradaSistemaArchivos e = n.entrada;
+            firma.append('|').append(e.getRuta()).append('|').append(e.getDueno()).append('|').append(e.getPermiso());
+            if (e instanceof Archivo a) firma.append('|').append(a.getTamanoBloques()).append('|').append(a.getPrimerBloque());
+        }
+        for (int i = 0; i < nodo.getChildCount(); i++) firmar((DefaultMutableTreeNode) nodo.getChildAt(i), firma);
     }
 
     private void construirNodos(Directorio dir, DefaultMutableTreeNode nodoPadre) {

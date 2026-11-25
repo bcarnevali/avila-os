@@ -4,6 +4,7 @@ import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonParseException;
 import edu.unimet.avilaos.disco.Disco;
+import edu.unimet.avilaos.kernel.RegistroEventos;
 import edu.unimet.avilaos.estructuras.ListaEnlazada;
 import edu.unimet.avilaos.modelo.enums.DireccionCabezal;
 import edu.unimet.avilaos.modelo.enums.TipoPermiso;
@@ -61,11 +62,19 @@ public final class GestorJsonSistemaArchivos {
     }
 
     public static ResultadoCarga cargar(File archivo, int tamanoSwap, TipoPoliticaDisco politica) throws IOException {
+        return cargar(archivo, tamanoSwap, politica, null);
+    }
+
+    public static ResultadoCarga cargar(File archivo, int tamanoSwap, TipoPoliticaDisco politica, RegistroEventos log) throws IOException {
         String json = new String(Files.readAllBytes(archivo.toPath()), StandardCharsets.UTF_8);
-        return leer(json, tamanoSwap, politica);
+        return leer(json, tamanoSwap, politica, log);
     }
 
     public static ResultadoCarga leer(String json, int tamanoSwap, TipoPoliticaDisco politica) {
+        return leer(json, tamanoSwap, politica, null);
+    }
+
+    public static ResultadoCarga leer(String json, int tamanoSwap, TipoPoliticaDisco politica, RegistroEventos log) {
         ArchivoSistemaDto dto;
         try {
             dto = new Gson().fromJson(json, ArchivoSistemaDto.class);
@@ -89,7 +98,7 @@ public final class GestorJsonSistemaArchivos {
         }
 
         Disco disco = new Disco(totalBloques, tamanoSwap, cabezalInicial,
-                DireccionCabezal.ARRIBA, 1, politica, null);
+                DireccionCabezal.ARRIBA, 1, politica, log);
         SistemaArchivos sistema = new SistemaArchivos(disco);
 
         // 1. Primero directorios

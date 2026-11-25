@@ -31,8 +31,7 @@ public class PanelControles extends JPanel {
         add(spinnerDuracion);
         add(new JLabel("Quantum:"));
         add(spinnerQuantum);
-        add(new JLabel("Latencia (ciclos):"));
-        add(spinnerLatencia);
+
         add(botonAplicar);
         add(etiquetaCiclo);
         botonPausar.setEnabled(false);

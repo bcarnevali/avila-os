@@ -1,17 +1,10 @@
 package edu.unimet.avilaos.configuracion;
 
-/**
- * La vista de configuracion solo arma una ConfiguracionSimulacion y la entrega.
- * Quien la implemente (el controlador) reinicia el cluster con ella.
- */
+import java.io.File;
+import java.io.IOException;
+
+/** Contrato entre la vista y el controlador para cargar ambos JSON. */
 public interface ReceptorConfiguracion {
-
-    /** Reinicia la simulacion con esta configuracion. */
-    void aplicarConfiguracion(ConfiguracionSimulacion configuracion);
-
-    /** Configuracion con la que esta corriendo la simulacion actual. */
-    ConfiguracionSimulacion getConfiguracionActual();
-
-    /** Procesos y buffers creados en la simulacion actual, como carga inicial para guardar. */
-    ConfiguracionSimulacion capturarCargaActual();
+    void aplicarConfiguracion(File procesos, File archivos) throws IOException;
+    void guardarSistemaArchivos(File destino) throws IOException;
 }

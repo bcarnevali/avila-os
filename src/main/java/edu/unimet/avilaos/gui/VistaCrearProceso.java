@@ -32,7 +32,7 @@ public class VistaCrearProceso extends JPanel {
     private final JTextField campoPrioridad = new JTextField(20);
     private final JTextField campoDeadline = new JTextField(20);
     private final JComboBox<TipoProceso> comboTipo = new JComboBox<>(new TipoProceso[] {
-            TipoProceso.CPU_BOUND, TipoProceso.IO_BOUND, TipoProceso.PRODUCTOR, TipoProceso.CONSUMIDOR});
+            TipoProceso.CPU_BOUND, TipoProceso.IO_BOUND});
     private final JComboBox<String> comboComputador = new JComboBox<>();
 
     private final JTextField campoCiclosEntreES = new JTextField(20);
@@ -71,7 +71,7 @@ public class VistaCrearProceso extends JPanel {
         agregarFila(formulario, 3, "Prioridad", campoPrioridad);
         agregarFila(formulario, 4, "Deadline (ciclos)", campoDeadline);
         agregarFila(formulario, 5, "Tipo de proceso", comboTipo);
-        agregarFila(formulario, 6, "Computador", comboComputador);
+
 
         panelTipo.add(crearPanelES(), PANEL_ES);
         panelTipo.add(crearPanelBuffer(), PANEL_BUFFER);
@@ -89,7 +89,7 @@ public class VistaCrearProceso extends JPanel {
 
         JPanel este = new JPanel(new BorderLayout());
         este.add(panelCrearBuffer, BorderLayout.NORTH);
-        add(este, BorderLayout.EAST);
+
 
         JButton botonCrear = new JButton("Crear proceso");
         botonCrear.addActionListener(e -> crear());
@@ -98,7 +98,7 @@ public class VistaCrearProceso extends JPanel {
         add(sur, BorderLayout.SOUTH);
 
         comboTipo.addActionListener(e -> mostrarPanelDelTipo());
-        setCantidadComputadores(2);
+        setCantidadComputadores(1);
         mostrarPanelDelTipo();
     }
 

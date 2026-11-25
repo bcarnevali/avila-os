@@ -2,7 +2,7 @@ package edu.unimet.avilaos.gui;
 
 import edu.unimet.avilaos.cluster.Cluster;
 import edu.unimet.avilaos.cluster.Computador;
-import edu.unimet.avilaos.sincronizacion.Buffer;
+
 import java.awt.BorderLayout;
 import java.awt.Dimension;
 import java.awt.GridLayout;
@@ -19,10 +19,11 @@ public class VistaSimulacion extends JPanel {
     private final JPanel panelComputadores = new JPanel();
     private final PanelLog panelLog = new PanelLog();
     private final PanelMetricas panelMetricas = new PanelMetricas();
-    private final JPanel panelBuffers = new JPanel();
+    private final PanelDisco panelDisco = new PanelDisco();
+    private final PanelSistemaArchivos panelArchivos = new PanelSistemaArchivos();
 
     private PanelComputador[] panelesPc = new PanelComputador[0];
-    private PanelBuffers[] panelesBuffers = new PanelBuffers[0];
+
 
     public VistaSimulacion() {
         setLayout(new BorderLayout(5, 5));
@@ -30,7 +31,8 @@ public class VistaSimulacion extends JPanel {
         JTabbedPane pestanas = new JTabbedPane();
         pestanas.addTab("Log de eventos", panelLog);
         pestanas.addTab("Métricas", panelMetricas);
-        pestanas.addTab("Buffers", new JScrollPane(panelBuffers));
+        pestanas.addTab("Disco", panelDisco);
+        pestanas.addTab("Archivos", panelArchivos);
         pestanas.setPreferredSize(new Dimension(0, 300));
 
         JSplitPane splitPane = new JSplitPane(JSplitPane.VERTICAL_SPLIT,
@@ -56,8 +58,7 @@ public class VistaSimulacion extends JPanel {
             panelComputadores.add(panelesPc[i - 1]);
         }
 
-        panelesBuffers = new PanelBuffers[0];
-        reconstruirBuffers(cluster.getBuffers());
+        panelDisco.getMetricas().reiniciar();
 
         revalidate();
         repaint();
@@ -75,33 +76,14 @@ public class VistaSimulacion extends JPanel {
 
         panelMetricas.actualizar(cluster);
 
-        Buffer[] buffers = cluster.getBuffers();
-        if (buffers.length != panelesBuffers.length) {
-            reconstruirBuffers(buffers);
-        }
-        for (int i = 0; i < buffers.length; i++) {
-            panelesBuffers[i].actualizar(buffers[i]);
-        }
+        Computador pc = cluster.getComputador(1);
+        panelDisco.actualizar(pc.getDisco(), cluster.getReloj().getCicloActual());
+        panelDisco.getMetricas().setSuspensiones(pc.getMedianoPlazo().getSuspensiones(), pc.getMedianoPlazo().getReactivaciones());
+        panelArchivos.refrescar();
     }
 
-    private void reconstruirBuffers(Buffer[] buffers) {
-        panelBuffers.removeAll();
-        if (buffers.length == 0) {
-            panelBuffers.setLayout(new BorderLayout());
-            panelBuffers.add(new JLabel("No hay buffers creados", SwingConstants.CENTER), BorderLayout.CENTER);
-        } else {
-            panelBuffers.setLayout(new GridLayout(1, buffers.length, 10, 10));
-        }
-        panelesBuffers = new PanelBuffers[buffers.length];
-        for (int i = 0; i < buffers.length; i++) {
-            panelesBuffers[i] = new PanelBuffers("Buffer " + buffers[i].getId()
-                    + " (en Computador " + buffers[i].getIdAnfitrion()
-                    + ", capacidad " + buffers[i].getCapacidad() + ")");
-            panelBuffers.add(panelesBuffers[i]);
-        }
-        panelBuffers.revalidate();
-        panelBuffers.repaint();
-    }
+    public PanelDisco getPanelDisco() { return panelDisco; }
+    public PanelSistemaArchivos getPanelArchivos() { return panelArchivos; }
 
     public PanelLog getPanelLog() {
         return panelLog;
