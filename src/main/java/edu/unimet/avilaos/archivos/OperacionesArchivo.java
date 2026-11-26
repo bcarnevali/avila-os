@@ -106,6 +106,8 @@ public class OperacionesArchivo implements ServicioArchivos {
 
                 int bloques = pcb.getBloquesArchivo();
                 if (bloques == 0) {
+                    if (modo != ModoUsuario.ADMINISTRADOR)
+                        throw new IllegalStateException("Solo el administrador puede crear directorios.");
                     return new SolicitudES(pcb, OperacionES.CREAR, 0, 1, ciclo);
                 }
 

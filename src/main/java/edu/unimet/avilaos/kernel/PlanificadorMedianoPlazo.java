@@ -94,7 +94,7 @@ public class PlanificadorMedianoPlazo implements Disco.ReceptorDisco {
             return;
         }
 
-        PCB victima = seleccionarVictimaSwapOut(true);
+        PCB victima = seleccionarVictimaSwapOut(false);
         if (victima == null) {
             return;
         }

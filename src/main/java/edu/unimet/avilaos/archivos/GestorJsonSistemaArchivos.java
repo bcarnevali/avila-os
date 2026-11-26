@@ -53,6 +53,8 @@ public final class GestorJsonSistemaArchivos {
         String type;
         Integer startBlock;
         Integer blocks;
+        int[] allocatedBlocks;
+        String creator;
         String owner;
         String permissions;
     }
@@ -122,7 +124,7 @@ public final class GestorJsonSistemaArchivos {
                     throw new IllegalArgumentException("Entrada #" + (i + 1) + ": blocks inválido.");
                 }
                 sistema.cargarArchivo(e.path.trim(), e.startBlock, e.blocks,
-                        e.owner.trim(), parsePermiso(e.permissions, i + 1));
+                        e.owner.trim(), parsePermiso(e.permissions, i + 1), e.allocatedBlocks, e.creator);
             } else if (!"DIRECTORY".equals(tipo)) {
                 throw new IllegalArgumentException("Entrada #" + (i + 1) + ": tipo desconocido \"" + e.type + "\".");
             }
@@ -138,7 +140,7 @@ public final class GestorJsonSistemaArchivos {
         dto.diskConfig.initialHead = disco.getPlanificador().getPosicion();
 
         ListaEnlazada<EntradaDto> entradas = new ListaEnlazada<>();
-        recolectarPreorden(sistema.getRaiz(), entradas);
+        recolectarPreorden(sistema.getRaiz(), entradas, disco);
 
         dto.fileSystem = new EntradaDto[entradas.tamano()];
         for (int i = 0; i < entradas.tamano(); i++) {
@@ -149,7 +151,7 @@ public final class GestorJsonSistemaArchivos {
         Files.write(destino.toPath(), gson.toJson(dto).getBytes(StandardCharsets.UTF_8));
     }
 
-    private static void recolectarPreorden(Directorio dir, ListaEnlazada<EntradaDto> salida) {
+    private static void recolectarPreorden(Directorio dir, ListaEnlazada<EntradaDto> salida, Disco disco) {
         ListaEnlazada<EntradaSistemaArchivos> hijos = dir.getHijos();
         for (int i = 0; i < hijos.tamano(); i++) {
             EntradaSistemaArchivos hijo = hijos.obtener(i);
@@ -161,12 +163,14 @@ public final class GestorJsonSistemaArchivos {
             if (hijo instanceof Directorio) {
                 item.type = "DIRECTORY";
                 salida.agregar(item);
-                recolectarPreorden((Directorio) hijo, salida);
+                recolectarPreorden((Directorio) hijo, salida, disco);
             } else if (hijo instanceof Archivo) {
                 Archivo arch = (Archivo) hijo;
                 item.type = "FILE";
                 item.startBlock = arch.getPrimerBloque();
                 item.blocks = arch.getTamanoBloques();
+                item.allocatedBlocks = disco.getCadena(arch.getPrimerBloque());
+                item.creator = arch.getProcesoCreador();
                 salida.agregar(item);
             }
         }

@@ -142,6 +142,10 @@ public class PanelSistemaArchivos extends JPanel {
     private void accionCrear(boolean esDirectorio) {
         if (!verificarSistemaListo()) return;
 
+        if (esDirectorio && getModoActual() != ModoUsuario.ADMINISTRADOR) {
+            mostrarError("Solo el administrador puede crear directorios.");
+            return;
+        }
         Directorio padre = obtenerDirectorioDestino();
         String motivo = Permisos.motivoParaCrear(getModoActual(), getUsuarioActual(), padre);
         if (motivo != null) {
@@ -345,15 +349,10 @@ public class PanelSistemaArchivos extends JPanel {
     }
 
     private void construirNodos(Directorio dir, DefaultMutableTreeNode nodoPadre) {
-        ModoUsuario modo = getModoActual();
-        String usuario = getUsuarioActual();
         ListaEnlazada<EntradaSistemaArchivos> hijos = dir.getHijos();
 
         for (int i = 0; i < hijos.tamano(); i++) {
             EntradaSistemaArchivos hijo = hijos.obtener(i);
-            if (Permisos.motivoParaLeer(modo, usuario, hijo) != null) {
-                continue;
-            }
             DefaultMutableTreeNode nodoHijo = new DefaultMutableTreeNode(new ItemArbol(hijo));
             nodoPadre.add(nodoHijo);
             if (hijo instanceof Directorio) {

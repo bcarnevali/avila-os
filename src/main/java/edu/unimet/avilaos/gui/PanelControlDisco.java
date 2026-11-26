@@ -38,7 +38,11 @@ public class PanelControlDisco extends JPanel {
         comboPolitica.setToolTipText("Se aplica de inmediato, aunque la simulación esté corriendo");
         comboPolitica.addActionListener(e -> {
             if (!actualizando && control != null) {
-                control.cambiarPoliticaDisco((TipoPoliticaDisco) comboPolitica.getSelectedItem());
+                try {
+                    control.cambiarPoliticaDisco((TipoPoliticaDisco) comboPolitica.getSelectedItem());
+                } catch (IllegalArgumentException ex) {
+                    JOptionPane.showMessageDialog(this, ex.getMessage(), "Operación no permitida", JOptionPane.WARNING_MESSAGE);
+                }
             }
         });
 

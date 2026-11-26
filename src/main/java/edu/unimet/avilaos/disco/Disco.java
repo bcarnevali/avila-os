@@ -106,6 +106,28 @@ public class Disco implements ComponenteReloj {
         return asignarArchivoDesde(primerBloque, ruta, cantidad);
     }
 
+    /** Restaura una cadena exacta, validándola antes de modificar el mapa. */
+    public void restaurarCadena(String ruta, int[] cadena) {
+        validarCantidad(cadena.length);
+        bloquear();
+        try {
+            if (cadena.length > bloquesLibres - (tamanoSwap - bloquesSwapUsados)) {
+                throw new IllegalArgumentException("No hay espacio para restaurar " + ruta);
+            }
+            boolean[] vistos = new boolean[totalBloques];
+            for (int bloque : cadena) {
+                if (bloque < 0 || bloque >= totalBloques || vistos[bloque] || ocupante[bloque] != null) {
+                    throw new IllegalArgumentException("Bloque inválido o repetido en " + ruta + ": " + bloque);
+                }
+                vistos[bloque] = true;
+            }
+            for (int i = 0; i < cadena.length; i++) {
+                ocupar(cadena[i], ruta, false);
+                siguiente[cadena[i]] = i + 1 < cadena.length ? cadena[i + 1] : SIN_SIGUIENTE;
+            }
+        } finally { mutex.release(); }
+    }
+
     private int asignarArchivoDesde(int primerBloque, String ruta, int cantidad) {
         validarCantidad(cantidad);
         bloquear();

@@ -38,6 +38,7 @@ public class ControladorSimulacion implements CreadorProcesos, ReceptorConfigura
 
     @Override
     public void aplicarConfiguracion(File procesos, File archivos) throws IOException {
+        exigirAdministrador();
         ConfiguracionProcesos c = GestorJsonProcesos.cargar(procesos);
         GestorJsonSistemaArchivos.ResultadoCarga carga = GestorJsonSistemaArchivos.cargar(
                 archivos, c.getTamanoSwap(), c.getPoliticaDisco(), vista.getPanelLog());
@@ -51,6 +52,9 @@ public class ControladorSimulacion implements CreadorProcesos, ReceptorConfigura
         if (cluster != null) cluster.getReloj().detener();
         cluster = nuevo; sistema = carga.getSistemaArchivos(); iniciado = false;
         vista.cargarCluster(cluster);
+        for (PanelComputador panel : vista.getPanelesPc()) {
+            panel.setControlPolitica(this::cambiarPoliticaCpu);
+        }
         vista.getPanelArchivos().asociar(sistema);
         controles.setDuracionCiclo(c.getDuracionCicloMs());
         controles.setQuantum(c.getQuantum());
@@ -64,6 +68,7 @@ public class ControladorSimulacion implements CreadorProcesos, ReceptorConfigura
 
     @Override
     public void guardarSistemaArchivos(File destino) throws IOException {
+        exigirAdministrador();
         exigirConfiguracion();
         if (iniciado && !cluster.getReloj().isPausado()) throw new IllegalStateException("Pausa la simulación antes de guardar.");
         GestorJsonSistemaArchivos.guardar(destino, sistema, disco());
@@ -71,11 +76,16 @@ public class ControladorSimulacion implements CreadorProcesos, ReceptorConfigura
     private void exigirConfiguracion() {
         if (cluster == null) throw new IllegalStateException("Carga y aplica ambos JSON primero.");
     }
+    private void exigirAdministrador() {
+        if (vista.getPanelArchivos().getModoActual() != ModoUsuario.ADMINISTRADOR)
+            throw new IllegalArgumentException("Operación reservada al administrador.");
+    }
     private Disco disco() { return cluster.getComputador(1).getDisco(); }
     private long ciclo() { return cluster.getReloj().getCicloActual(); }
 
     @Override
     public void crearProceso(SolicitudProceso s) {
+        exigirAdministrador();
         exigirConfiguracion();
         Computador pc = cluster.getComputador(1);
         if (s.memoria() > pc.getMemoria().getCapacidad()) throw new IllegalArgumentException("La memoria requerida supera la RAM.");
@@ -94,12 +104,19 @@ public class ControladorSimulacion implements CreadorProcesos, ReceptorConfigura
         pcb.setNuevoNombre(nuevoNombre);
         cluster.getComputador(1).crearProceso(pcb, ciclo());
     }
+    private void cambiarPoliticaCpu(TipoPolitica politica) {
+        exigirAdministrador();
+        exigirConfiguracion();
+        cluster.getComputador(1).getPlanificador().cambiarPolitica(politica, ciclo());
+    }
     @Override
     public void cambiarPoliticaDisco(TipoPoliticaDisco politica) {
+        exigirAdministrador();
         if (cluster != null) disco().getPlanificador().cambiarPolitica(politica, ciclo());
     }
     @Override
     public void cambiarVelocidadCabezal(int velocidad) {
+        exigirAdministrador();
         if (cluster != null) disco().getPlanificador().setVelocidad(velocidad);
     }
     private void iniciar() {
@@ -119,6 +136,7 @@ public class ControladorSimulacion implements CreadorProcesos, ReceptorConfigura
     private void aplicarParametros() {
         if (cluster == null) return;
         try {
+            exigirAdministrador();
             int duracion = controles.getDuracionCiclo(), quantum = controles.getQuantum();
             cluster.getReloj().setDuracionCiclo(duracion);
             cluster.getComputador(1).getPlanificador().cambiarQuantum(quantum, ciclo());

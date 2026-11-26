@@ -11,6 +11,11 @@ public class PanelComputador extends JPanel {
     private edu.unimet.avilaos.cluster.Computador pcAsociado;
     /** true mientras el combo se ajusta por codigo, para no registrar un cambio de politica falso. */
     private boolean sincronizandoCombo = false;
+    private java.util.function.Consumer<TipoPolitica> controlPolitica;
+
+    public void setControlPolitica(java.util.function.Consumer<TipoPolitica> control) {
+        this.controlPolitica = control;
+    }
 
     // Componentes del Panel Superior (CPU, RAM y Selector de Política)
     private final JLabel lblCpuEstado = new JLabel("CPU: Ociosa | Modo: USUARIO | PC: 0");
@@ -143,8 +148,13 @@ public class PanelComputador extends JPanel {
     private void cambiarPoliticaSimulacion(TipoPolitica nuevaPolitica) {
         if (pcAsociado == null || pcAsociado.getPlanificador() == null) return;
         if (pcAsociado.getPlanificador().getTipoPolitica() == nuevaPolitica) return;
-        long ciclo = pcAsociado.getCluster() != null ? pcAsociado.getCluster().getReloj().getCicloActual() : 0;
-        pcAsociado.getPlanificador().cambiarPolitica(nuevaPolitica, ciclo);
+        try {
+            if (controlPolitica == null) throw new IllegalStateException("Control de CPU no conectado.");
+            controlPolitica.accept(nuevaPolitica);
+        } catch (IllegalArgumentException | IllegalStateException ex) {
+            asociarComputador(pcAsociado);
+            JOptionPane.showMessageDialog(this, ex.getMessage(), "Operación no permitida", JOptionPane.WARNING_MESSAGE);
+        }
     }
 
     public String getTitulo() { return titulo; }
