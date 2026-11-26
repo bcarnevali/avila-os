@@ -2,50 +2,51 @@ package edu.unimet.avilaos.gui;
 
 import edu.unimet.avilaos.cluster.Cluster;
 import edu.unimet.avilaos.cluster.Computador;
-import edu.unimet.avilaos.sincronizacion.Buffer;
 import java.awt.BorderLayout;
-import java.awt.Dimension;
 import java.awt.GridLayout;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
-import javax.swing.JScrollPane;
-import javax.swing.JSplitPane;
 import javax.swing.JTabbedPane;
 import javax.swing.SwingConstants;
 
-/** Vista 2: computadores arriba; log, metricas y buffers abajo en pestañas. */
+/** Pantalla principal organizada en 5 pestañas a pantalla completa. */
 public class VistaSimulacion extends JPanel {
 
-    private final JPanel panelComputadores = new JPanel();
-    private final PanelLog panelLog = new PanelLog();
+    private final JPanel panelProcesos = new JPanel(new BorderLayout());
+    private final PanelDisco panelDisco = new PanelDisco();
+    private final PanelSistemaArchivos panelArchivos = new PanelSistemaArchivos();
     private final PanelMetricas panelMetricas = new PanelMetricas();
-    private final JPanel panelBuffers = new JPanel();
+    private final PanelLog panelLog = new PanelLog();
 
     private PanelComputador[] panelesPc = new PanelComputador[0];
-    private PanelBuffers[] panelesBuffers = new PanelBuffers[0];
 
     public VistaSimulacion() {
-        setLayout(new BorderLayout(5, 5));
+        setLayout(new BorderLayout(4, 4));
+
+        JLabel avisoInicial = new JLabel(
+                "<html><center><h2>Bienvenido a ÁvilaOS</h2>"
+                + "<p>Haz clic en <b>1. Cargar JSON</b> en la barra superior para seleccionar "
+                + "el <b>JSON de procesos</b> y el <b>JSON de archivos</b> antes de iniciar.</p></center></html>",
+                SwingConstants.CENTER);
+        panelProcesos.add(avisoInicial, BorderLayout.CENTER);
 
         JTabbedPane pestanas = new JTabbedPane();
-        pestanas.addTab("Log de eventos", panelLog);
+        pestanas.addTab("Procesos", panelProcesos);
+        pestanas.addTab("Disco", panelDisco);
+        pestanas.addTab("Archivos", panelArchivos);
         pestanas.addTab("Métricas", panelMetricas);
-        pestanas.addTab("Buffers", new JScrollPane(panelBuffers));
-        pestanas.setPreferredSize(new Dimension(0, 300));
+        pestanas.addTab("Log", panelLog);
 
-        JSplitPane splitPane = new JSplitPane(JSplitPane.VERTICAL_SPLIT,
-                new JScrollPane(panelComputadores), pestanas);
-        splitPane.setResizeWeight(0.6);
-        add(splitPane, BorderLayout.CENTER);
+        add(pestanas, BorderLayout.CENTER);
     }
 
-    /** Crea un panel por cada computador del cluster y reinicia las metricas. */
+    /** Crea el panel del computador en la pestaña Procesos y reinicia las métricas. */
     public void cargarCluster(Cluster cluster) {
         if (cluster == null) return;
         int total = cluster.getCantidad();
 
-        panelComputadores.removeAll();
-        panelComputadores.setLayout(new GridLayout(1, total, 10, 10));
+        panelProcesos.removeAll();
+        panelProcesos.setLayout(new GridLayout(1, total, 8, 8));
         panelMetricas.reiniciar();
 
         panelesPc = new PanelComputador[total];
@@ -53,17 +54,15 @@ public class VistaSimulacion extends JPanel {
             Computador pc = cluster.getComputador(i);
             panelesPc[i - 1] = new PanelComputador("Computador " + pc.getId());
             panelesPc[i - 1].asociarComputador(pc);
-            panelComputadores.add(panelesPc[i - 1]);
+            panelProcesos.add(panelesPc[i - 1]);
         }
 
-        panelesBuffers = new PanelBuffers[0];
-        reconstruirBuffers(cluster.getBuffers());
-
+        panelDisco.getMetricas().reiniciar();
         revalidate();
         repaint();
     }
 
-    /** Refresca todo lo visible. Lo llama el Timer del controlador (hilo de Swing). */
+    /** Refresca todo lo visible desde el Timer del controlador. */
     public void actualizarDatos(Cluster cluster) {
         if (cluster == null) return;
         for (int i = 1; i <= cluster.getCantidad() && i - 1 < panelesPc.length; i++) {
@@ -75,39 +74,26 @@ public class VistaSimulacion extends JPanel {
 
         panelMetricas.actualizar(cluster);
 
-        Buffer[] buffers = cluster.getBuffers();
-        if (buffers.length != panelesBuffers.length) {
-            reconstruirBuffers(buffers);
-        }
-        for (int i = 0; i < buffers.length; i++) {
-            panelesBuffers[i].actualizar(buffers[i]);
-        }
+        Computador pc = cluster.getComputador(1);
+        panelDisco.actualizar(pc.getDisco(), cluster.getReloj().getCicloActual());
+        int susp = pc.getMedianoPlazo().getSuspensiones();
+        int react = pc.getMedianoPlazo().getReactivaciones();
+        panelDisco.getMetricas().setSuspensiones(susp, react);
+        panelMetricas.setSuspensiones(susp, react);
+        panelArchivos.refrescar();
     }
 
-    private void reconstruirBuffers(Buffer[] buffers) {
-        panelBuffers.removeAll();
-        if (buffers.length == 0) {
-            panelBuffers.setLayout(new BorderLayout());
-            panelBuffers.add(new JLabel("No hay buffers creados", SwingConstants.CENTER), BorderLayout.CENTER);
-        } else {
-            panelBuffers.setLayout(new GridLayout(1, buffers.length, 10, 10));
+    public void actualizarPermisosVisuales(boolean esAdmin, String usuarioActual) {
+        for (PanelComputador pc : panelesPc) {
+            pc.actualizarPermisosVisuales(esAdmin);
         }
-        panelesBuffers = new PanelBuffers[buffers.length];
-        for (int i = 0; i < buffers.length; i++) {
-            panelesBuffers[i] = new PanelBuffers("Buffer " + buffers[i].getId()
-                    + " (en Computador " + buffers[i].getIdAnfitrion()
-                    + ", capacidad " + buffers[i].getCapacidad() + ")");
-            panelBuffers.add(panelesBuffers[i]);
-        }
-        panelBuffers.revalidate();
-        panelBuffers.repaint();
+        panelDisco.actualizarPermisosVisuales(esAdmin);
+        panelArchivos.sincronizarModoGlobal(esAdmin, usuarioActual);
     }
 
-    public PanelLog getPanelLog() {
-        return panelLog;
-    }
-
-    public PanelComputador[] getPanelesPc() {
-        return panelesPc;
-    }
+    public PanelDisco getPanelDisco() { return panelDisco; }
+    public PanelSistemaArchivos getPanelArchivos() { return panelArchivos; }
+    public PanelMetricas getPanelMetricas() { return panelMetricas; }
+    public PanelLog getPanelLog() { return panelLog; }
+    public PanelComputador[] getPanelesPc() { return panelesPc; }
 }

@@ -107,6 +107,11 @@ public class SistemaArchivos {
     }
 
     public Archivo cargarArchivo(String ruta, int primerBloque, int bloques, String dueno, TipoPermiso permiso) {
+        return cargarArchivo(ruta, primerBloque, bloques, dueno, permiso, null, "JSON");
+    }
+
+    public Archivo cargarArchivo(String ruta, int primerBloque, int bloques, String dueno,
+                                 TipoPermiso permiso, int[] cadena, String creador) {
         bloquear();
         try {
             String limpia = normalizarRuta(ruta);
@@ -115,10 +120,14 @@ public class SistemaArchivos {
             }
             Directorio padre = obtenerDirectorioPadre(limpia);
             String nombre = obtenerNombreFinal(limpia);
+            if (cadena == null) disco.asignarArchivoEn(primerBloque, limpia, bloques);
+            else {
+                if (cadena.length != bloques || bloques < 1 || cadena[0] != primerBloque)
+                    throw new IllegalArgumentException("Cadena incompatible con " + ruta);
+                disco.restaurarCadena(limpia, cadena);
+            }
 
-            disco.asignarArchivoEn(primerBloque, limpia, bloques);
-
-            Archivo nuevo = new Archivo(nombre, dueno, permiso, padre, primerBloque, bloques, "JSON");
+            Archivo nuevo = new Archivo(nombre, dueno, permiso, padre, primerBloque, bloques, creador == null ? "JSON" : creador);
             padre.agregarHijo(nuevo);
             return nuevo;
         } finally {

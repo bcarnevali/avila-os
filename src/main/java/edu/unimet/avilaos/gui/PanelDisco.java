@@ -5,10 +5,6 @@ import java.awt.BorderLayout;
 import javax.swing.JPanel;
 import javax.swing.JSplitPane;
 
-/**
- * Pestaña del disco: el mapa de bloques con el cabezal, el selector de política,
- * la cola de E/S y las métricas con el gráfico. Solo observa al disco.
- */
 public class PanelDisco extends JPanel {
 
     private final PanelMapaDisco mapa = new PanelMapaDisco();
@@ -34,6 +30,10 @@ public class PanelDisco extends JPanel {
 
     public void setControl(ControlDisco controlDisco) {
         control.setControl(controlDisco);
+    }
+
+    public void actualizarPermisosVisuales(boolean esAdmin) {
+        control.actualizarPermisosVisuales(esAdmin);
     }
 
     public void actualizar(Disco disco, long ciclo) {
