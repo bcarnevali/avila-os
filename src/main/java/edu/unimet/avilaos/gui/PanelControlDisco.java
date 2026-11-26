@@ -22,6 +22,7 @@ public class PanelControlDisco extends JPanel {
     private final JSpinner spinnerVelocidad = new JSpinner(new SpinnerNumberModel(5, 1, 200, 1));
     private ControlDisco control;
     private boolean actualizando;
+    private PlanificadorDisco planActual;
 
     public PanelControlDisco() {
         super(new FlowLayout(FlowLayout.LEFT, 8, 2));
@@ -66,15 +67,21 @@ public class PanelControlDisco extends JPanel {
 
     /** Refleja la política activa sin volver a disparar el cambio. */
     public void actualizar(PlanificadorDisco plan) {
-        actualizando = true;
-        try {
-            if (comboPolitica.getSelectedItem() != plan.getPolitica() && !comboPolitica.isPopupVisible()) {
-                comboPolitica.setSelectedItem(plan.getPolitica());
-            }
-        } finally {
-            actualizando = false;
+    actualizando = true;
+    try {
+        if (planActual != plan) {
+            planActual = plan;
+            spinnerVelocidad.setValue(plan.getVelocidad());
         }
+
+        if (comboPolitica.getSelectedItem() != plan.getPolitica()
+                && !comboPolitica.isPopupVisible()) {
+            comboPolitica.setSelectedItem(plan.getPolitica());
+        }
+    } finally {
+        actualizando = false;
     }
+}
 
     public static String nombre(TipoPoliticaDisco p) {
         return p == TipoPoliticaDisco.C_SCAN ? "C-SCAN" : p.name();
