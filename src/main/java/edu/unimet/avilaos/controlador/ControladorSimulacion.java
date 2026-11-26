@@ -19,6 +19,7 @@ public class ControladorSimulacion implements CreadorProcesos, ReceptorConfigura
     private Cluster cluster;
     private SistemaArchivos sistema;
     private boolean iniciado;
+    private int duracionCicloActual = 500;
 
     public ControladorSimulacion(VistaConfiguracion configuracion, VistaCrearProceso crear,
                                  VistaSimulacion vista, PanelControles controles) {
@@ -28,12 +29,20 @@ public class ControladorSimulacion implements CreadorProcesos, ReceptorConfigura
         crear.setCantidadComputadores(1);
         vista.getPanelDisco().setControl(this);
         vista.getPanelArchivos().setSolicitanteOperaciones(this);
+        vista.getPanelArchivos().setGuardadorJson(this::guardarSistemaArchivos);
         controles.getBotonIniciar().setEnabled(false);
         controles.getBotonAplicar().setEnabled(false);
         controles.getBotonIniciar().addActionListener(e -> iniciar());
         controles.getBotonPausar().addActionListener(e -> pausarOReanudar());
         controles.getBotonAplicar().addActionListener(e -> aplicarParametros());
+        controles.setOnCambioModo(this::sincronizarPermisosVisuales);
+        sincronizarPermisosVisuales();
         new Timer(200, e -> refrescar()).start();
+    }
+
+    private void sincronizarPermisosVisuales() {
+        boolean esAdmin = controles.getModoActual() == ModoUsuario.ADMINISTRADOR;
+        vista.actualizarPermisosVisuales(esAdmin, controles.getUsuarioActual());
     }
 
     @Override
@@ -48,7 +57,6 @@ public class ControladorSimulacion implements CreadorProcesos, ReceptorConfigura
         for (int i = 0; i < c.getProcesos().tamano(); i++) {
             nuevo.getComputador(1).crearProceso(c.getProcesos().obtener(i).crearPCB(1, 0), 0);
         }
-        // Solo reemplazar la simulación después de validar y construir la nueva.
         if (cluster != null) cluster.getReloj().detener();
         cluster = nuevo; sistema = carga.getSistemaArchivos(); iniciado = false;
         vista.cargarCluster(cluster);
@@ -56,13 +64,15 @@ public class ControladorSimulacion implements CreadorProcesos, ReceptorConfigura
             panel.setControlPolitica(this::cambiarPoliticaCpu);
         }
         vista.getPanelArchivos().asociar(sistema);
+        controles.marcarJsonCargados(procesos.getName(), archivos.getName());
         controles.setDuracionCiclo(c.getDuracionCicloMs());
+        duracionCicloActual = c.getDuracionCicloMs();
         controles.setQuantum(c.getQuantum());
         controles.setCiclo(0);
         controles.getBotonIniciar().setEnabled(true);
-        controles.getBotonAplicar().setEnabled(true);
         controles.getBotonPausar().setEnabled(false);
         controles.getBotonPausar().setText("Pausar");
+        sincronizarPermisosVisuales();
         refrescar();
     }
 
@@ -73,13 +83,16 @@ public class ControladorSimulacion implements CreadorProcesos, ReceptorConfigura
         if (iniciado && !cluster.getReloj().isPausado()) throw new IllegalStateException("Pausa la simulación antes de guardar.");
         GestorJsonSistemaArchivos.guardar(destino, sistema, disco());
     }
+
     private void exigirConfiguracion() {
         if (cluster == null) throw new IllegalStateException("Carga y aplica ambos JSON primero.");
     }
+
     private void exigirAdministrador() {
-        if (vista.getPanelArchivos().getModoActual() != ModoUsuario.ADMINISTRADOR)
+        if (controles.getModoActual() != ModoUsuario.ADMINISTRADOR)
             throw new IllegalArgumentException("Operación reservada al administrador.");
     }
+
     private Disco disco() { return cluster.getComputador(1).getDisco(); }
     private long ciclo() { return cluster.getReloj().getCicloActual(); }
 
@@ -93,38 +106,42 @@ public class ControladorSimulacion implements CreadorProcesos, ReceptorConfigura
         pcb.configurarES(s.ciclosEntreES(), s.ciclosParaSatisfacerES());
         pc.crearProceso(pcb, ciclo());
     }
+
     @Override
     public void solicitarOperacion(OperacionES op, String ruta, int bloques, String nuevoNombre) {
         exigirConfiguracion();
-        PanelSistemaArchivos panel = vista.getPanelArchivos();
-        // Las operaciones interactivas consumen una instrucción y una unidad de RAM.
         PCB pcb = new PCB(op + " " + ruta, TipoProceso.ES_ARCHIVO, 5, 1, 1, Integer.MAX_VALUE, 1, ciclo());
         pcb.configurarArchivo(op, ruta, bloques);
-        pcb.setUsuario(panel.getUsuarioActual(), panel.getModoActual() == ModoUsuario.ADMINISTRADOR);
+        pcb.setUsuario(controles.getUsuarioActual(), controles.getModoActual() == ModoUsuario.ADMINISTRADOR);
         pcb.setNuevoNombre(nuevoNombre);
         cluster.getComputador(1).crearProceso(pcb, ciclo());
     }
+
     private void cambiarPoliticaCpu(TipoPolitica politica) {
         exigirAdministrador();
         exigirConfiguracion();
         cluster.getComputador(1).getPlanificador().cambiarPolitica(politica, ciclo());
     }
+
     @Override
     public void cambiarPoliticaDisco(TipoPoliticaDisco politica) {
         exigirAdministrador();
         if (cluster != null) disco().getPlanificador().cambiarPolitica(politica, ciclo());
     }
+
     @Override
     public void cambiarVelocidadCabezal(int velocidad) {
         exigirAdministrador();
         if (cluster != null) disco().getPlanificador().setVelocidad(velocidad);
     }
+
     private void iniciar() {
         if (cluster == null || iniciado) return;
         cluster.iniciar(); iniciado = true;
         controles.getBotonIniciar().setEnabled(false);
         controles.getBotonPausar().setEnabled(true);
     }
+
     private void pausarOReanudar() {
         if (!iniciado) return;
         if (cluster.getReloj().isPausado()) {
@@ -133,20 +150,28 @@ public class ControladorSimulacion implements CreadorProcesos, ReceptorConfigura
             cluster.getReloj().pausar(); controles.getBotonPausar().setText("Reanudar");
         }
     }
+
     private void aplicarParametros() {
         if (cluster == null) return;
         try {
             exigirAdministrador();
-            int duracion = controles.getDuracionCiclo(), quantum = controles.getQuantum();
+            int duracion = controles.getDuracionCiclo();
+            int quantum = controles.getQuantum();
             cluster.getReloj().setDuracionCiclo(duracion);
             cluster.getComputador(1).getPlanificador().cambiarQuantum(quantum, ciclo());
+            duracionCicloActual = duracion;
         } catch (IllegalArgumentException ex) {
-            JOptionPane.showMessageDialog(controles, ex.getMessage(), "Dato inválido", JOptionPane.WARNING_MESSAGE);
+            controles.setDuracionCiclo(duracionCicloActual);
+            controles.setQuantum(cluster.getComputador(1).getPlanificador().getQuantum());
+            JOptionPane.showMessageDialog(controles, ex.getMessage(), "Operación no permitida", JOptionPane.WARNING_MESSAGE);
         }
     }
+
     private void refrescar() {
         if (cluster == null) return;
-        vista.actualizarDatos(cluster); controles.setCiclo(ciclo());
+        vista.actualizarDatos(cluster);
+        controles.setCiclo(ciclo());
     }
+
     public Cluster getCluster() { return cluster; }
 }

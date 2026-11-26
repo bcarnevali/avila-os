@@ -14,9 +14,10 @@ import java.awt.Color;
 import java.awt.Component;
 import java.awt.FlowLayout;
 import java.awt.GridLayout;
+import java.io.File;
 import javax.swing.BorderFactory;
 import javax.swing.JButton;
-import javax.swing.JComboBox;
+import javax.swing.JFileChooser;
 import javax.swing.JLabel;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
@@ -24,6 +25,7 @@ import javax.swing.JScrollPane;
 import javax.swing.JSplitPane;
 import javax.swing.JTable;
 import javax.swing.JTree;
+import javax.swing.filechooser.FileNameExtensionFilter;
 import javax.swing.table.DefaultTableCellRenderer;
 import javax.swing.tree.DefaultMutableTreeNode;
 import javax.swing.tree.DefaultTreeModel;
@@ -31,17 +33,23 @@ import javax.swing.tree.TreePath;
 
 public class PanelSistemaArchivos extends JPanel {
 
+    public interface GuardadorJson {
+        void guardar(File destino) throws Exception;
+    }
+
     private SistemaArchivos sistema;
     private SolicitanteOperaciones solicitante;
+    private GuardadorJson guardadorJson;
 
-    private final JComboBox<ModoUsuario> comboModo = new JComboBox<>(ModoUsuario.values());
-    private final JComboBox<String> comboUsuario = new JComboBox<>(new String[]{"user1", "user2"});
+    private ModoUsuario modoActual = ModoUsuario.ADMINISTRADOR;
+    private String usuarioActual = "admin";
 
     private final JButton btnCrearArchivo = new JButton("Crear archivo");
     private final JButton btnCrearDirectorio = new JButton("Crear directorio");
     private final JButton btnLeer = new JButton("Leer");
     private final JButton btnRenombrar = new JButton("Renombrar");
     private final JButton btnEliminar = new JButton("Eliminar");
+    private final JButton btnGuardarJson = new JButton("Guardar JSON...");
 
     private final DefaultMutableTreeNode nodoRaizVisual = new DefaultMutableTreeNode("/");
     private final DefaultTreeModel modeloArbol = new DefaultTreeModel(nodoRaizVisual);
@@ -60,41 +68,17 @@ public class PanelSistemaArchivos extends JPanel {
         setLayout(new BorderLayout(8, 8));
         setBorder(BorderFactory.createEmptyBorder(8, 8, 8, 8));
 
-        JPanel barraSuperior = new JPanel(new BorderLayout(5, 5));
-
-        JPanel barraModo = new JPanel(new FlowLayout(FlowLayout.LEFT));
-        barraModo.setBorder(BorderFactory.createTitledBorder("Modo de acceso"));
-        barraModo.add(new JLabel("Modo:"));
-        barraModo.add(comboModo);
-        barraModo.add(new JLabel("Usuario:"));
-        barraModo.add(comboUsuario);
-
-        JPanel barraAcciones = new JPanel(new FlowLayout(FlowLayout.LEFT));
-        barraAcciones.setBorder(BorderFactory.createTitledBorder("Operaciones de E/S"));
+        JPanel barraAcciones = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 4));
+        barraAcciones.setBorder(BorderFactory.createTitledBorder("Operaciones de E/S y persistencia"));
         barraAcciones.add(btnCrearArchivo);
         barraAcciones.add(btnCrearDirectorio);
         barraAcciones.add(btnLeer);
         barraAcciones.add(btnRenombrar);
         barraAcciones.add(btnEliminar);
-
-        barraSuperior.add(barraModo, BorderLayout.WEST);
-        barraSuperior.add(barraAcciones, BorderLayout.CENTER);
-
-        comboUsuario.setEnabled(false);
-        comboModo.addActionListener(e -> {
-            boolean esUsuario = getModoActual() == ModoUsuario.USUARIO;
-            comboUsuario.setEnabled(esUsuario);
-            refrescar();
-            actualizarDetalleSeleccion();
-        });
-        comboUsuario.addActionListener(e -> {
-            refrescar();
-            actualizarDetalleSeleccion();
-        });
+        barraAcciones.add(btnGuardarJson);
 
         configurarBotones();
-
-        add(barraSuperior, BorderLayout.NORTH);
+        add(barraAcciones, BorderLayout.NORTH);
 
         JScrollPane scrollArbol = new JScrollPane(arbol);
         scrollArbol.setBorder(BorderFactory.createTitledBorder("Árbol de Directorios"));
@@ -119,11 +103,28 @@ public class PanelSistemaArchivos extends JPanel {
         JSplitPane split = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, panelIzquierdo, scrollTabla);
         split.setDividerLocation(340);
         add(split, BorderLayout.CENTER);
+
+        sincronizarModoGlobal(true, "admin");
+    }
+
+    public void sincronizarModoGlobal(boolean esAdmin, String usuario) {
+        this.modoActual = esAdmin ? ModoUsuario.ADMINISTRADOR : ModoUsuario.USUARIO;
+        this.usuarioActual = esAdmin ? "admin" : usuario;
+        btnCrearDirectorio.setEnabled(esAdmin);
+        btnGuardarJson.setEnabled(esAdmin && sistema != null);
+        ultimaVista = null;
+        refrescar();
+        actualizarDetalleSeleccion();
+    }
+
+    public void setGuardadorJson(GuardadorJson guardadorJson) {
+        this.guardadorJson = guardadorJson;
     }
 
     public void asociar(SistemaArchivos sistema) {
         this.sistema = sistema;
         ultimaVista = null;
+        btnGuardarJson.setEnabled(modoActual == ModoUsuario.ADMINISTRADOR && sistema != null);
         refrescar();
     }
 
@@ -137,6 +138,29 @@ public class PanelSistemaArchivos extends JPanel {
         btnLeer.addActionListener(e -> accionLeer());
         btnRenombrar.addActionListener(e -> accionRenombrar());
         btnEliminar.addActionListener(e -> accionEliminar());
+        btnGuardarJson.addActionListener(e -> accionGuardarJson());
+    }
+
+    private void accionGuardarJson() {
+        if (!verificarSistemaListo()) return;
+        if (guardadorJson == null) {
+            mostrarError("El guardado de JSON no está conectado.");
+            return;
+        }
+        JFileChooser selector = new JFileChooser(new File(System.getProperty("user.dir"), "ejemplos"));
+        selector.setFileFilter(new FileNameExtensionFilter("Archivos JSON", "json"));
+        if (selector.showSaveDialog(this) != JFileChooser.APPROVE_OPTION) return;
+        File destino = selector.getSelectedFile();
+        if (!destino.getName().toLowerCase().endsWith(".json")) {
+            destino = new File(destino.getPath() + ".json");
+        }
+        try {
+            guardadorJson.guardar(destino);
+            JOptionPane.showMessageDialog(this, "Sistema de archivos guardado en:\n" + destino.getName(),
+                    "Guardado exitoso", JOptionPane.INFORMATION_MESSAGE);
+        } catch (Exception ex) {
+            mostrarError(ex.getMessage());
+        }
     }
 
     private void accionCrear(boolean esDirectorio) {
@@ -425,16 +449,11 @@ public class PanelSistemaArchivos extends JPanel {
     }
 
     public ModoUsuario getModoActual() {
-        ModoUsuario m = (ModoUsuario) comboModo.getSelectedItem();
-        return m != null ? m : ModoUsuario.ADMINISTRADOR;
+        return modoActual;
     }
 
     public String getUsuarioActual() {
-        if (getModoActual() == ModoUsuario.ADMINISTRADOR) {
-            return "admin";
-        }
-        Object sel = comboUsuario.getSelectedItem();
-        return sel != null ? sel.toString() : "user1";
+        return usuarioActual;
     }
 
     private static class ItemArbol {

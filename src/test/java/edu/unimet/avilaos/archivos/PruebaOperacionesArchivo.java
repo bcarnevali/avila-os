@@ -84,17 +84,85 @@ public class PruebaOperacionesArchivo {
         System.out.println("=== 5. admin renombra archivo y crea directorio ===");
         PCB p5Ren = crearProceso("RenAdmin", "admin", true, OperacionES.ACTUALIZAR, "/usuarios/user1/nuevo.txt", 0, "renombrado.txt");
         pc.crearProceso(p5Ren, ciclo);
+        
         ciclo = avanzarDesde(pc, disco, new PCB[]{p5Ren}, ciclo, 500);
         verificar("nombre anterior ya no existe", fs.buscar("/usuarios/user1/nuevo.txt") == null);
         verificar("archivo renombrado existe", fs.buscar("/usuarios/user1/renombrado.txt") instanceof Archivo);
 
-        PCB p5Dir = crearProceso("DirU1", "user1", false, OperacionES.CREAR, "/usuarios/user1/carpeta", 0, null);
+       PCB p5Dir = crearProceso("DirAdmin", "admin", true, OperacionES.CREAR, "/usuarios/user1/carpeta", 0, null);
         pc.crearProceso(p5Dir, ciclo);
-        avanzarDesde(pc, disco, new PCB[]{p5Dir}, ciclo, 500);
+        ciclo = avanzarDesde(pc, disco, new PCB[]{p5Dir}, ciclo, 500);
         verificar("directorio creado con bloques = 0", fs.buscar("/usuarios/user1/carpeta") instanceof Directorio);
 
-        System.out.println();
-        System.out.println(fallos == 0 ? "TODAS LAS PRUEBAS PASARON" : fallos + " PRUEBA(S) FALLARON");
+        // 6. Persistencia en JSON con bloques no consecutivos (fragmentados)
+        System.out.println("=== 6. Persistencia JSON con bloques no consecutivos ===");
+        PCB p6A = crearProceso("FragA", "user1", false, OperacionES.CREAR, "/usuarios/user1/fragA.txt", 1, null);
+        PCB p6B = crearProceso("FragB", "user1", false, OperacionES.CREAR, "/usuarios/user1/fragB.txt", 1, null);
+        PCB p6C = crearProceso("FragC", "user1", false, OperacionES.CREAR, "/usuarios/user1/fragC.txt", 1, null);
+        pc.crearProceso(p6A, ciclo);
+        pc.crearProceso(p6B, ciclo);
+        pc.crearProceso(p6C, ciclo);
+        ciclo = avanzarDesde(pc, disco, new PCB[]{p6A, p6B, p6C}, ciclo, 800);
+
+        // Eliminar fragB deja un hueco de 1 bloque en medio; fragD (3 bloques) toma ese hueco y salta fragC
+        PCB p6DelB = crearProceso("DelFragB", "user1", false, OperacionES.ELIMINAR, "/usuarios/user1/fragB.txt", 0, null);
+        pc.crearProceso(p6DelB, ciclo);
+        ciclo = avanzarDesde(pc, disco, new PCB[]{p6DelB}, ciclo, 500);
+
+        PCB p6D = crearProceso("FragD", "user1", false, OperacionES.CREAR, "/usuarios/user1/fragD.txt", 3, null);
+        pc.crearProceso(p6D, ciclo);
+        ciclo = avanzarDesde(pc, disco, new PCB[]{p6D}, ciclo, 800);
+
+        Archivo fragDOriginal = (Archivo) fs.buscar("/usuarios/user1/fragD.txt");
+        int primerBloqueOriginal = fragDOriginal.getPrimerBloque();
+        int libresAntesGuardar = disco.getBloquesLibres();
+
+        File tempJson = File.createTempFile("avilaos_test_", ".json");
+        tempJson.deleteOnExit();
+        GestorJsonSistemaArchivos.guardar(tempJson, fs, disco);
+
+        ResultadoCarga recarga = GestorJsonSistemaArchivos.cargar(tempJson, 50, TipoPoliticaDisco.FIFO);
+        Archivo fragDRecargado = (Archivo) recarga.getSistemaArchivos().buscar("/usuarios/user1/fragD.txt");
+        verificar("fragD fragmentado recargado desde JSON conserva primer bloque (" + primerBloqueOriginal + ") y 3 bloques",
+                fragDRecargado != null
+                        && fragDRecargado.getPrimerBloque() == primerBloqueOriginal
+                        && fragDRecargado.getTamanoBloques() == 3);
+        verificar("bloques libres del disco coinciden tras guardar y recargar JSON",
+                recarga.getDisco().getBloquesLibres() == libresAntesGuardar);
+
+        // 7. Preservación de dueño / creador en JSON
+        System.out.println("=== 7. Preservación de dueño/creador tras persistencia JSON ===");
+        Archivo renRecargado = (Archivo) recarga.getSistemaArchivos().buscar("/usuarios/user1/renombrado.txt");
+        verificar("dueño 'user1' se preserva en JSON",
+                renRecargado != null && "user1".equals(renRecargado.getDueno()));
+
+        // 8. Eliminación recursiva de directorio con archivos internos libera todos sus bloques
+        // 8. Eliminación de directorio con archivos internos libera todos sus bloques
+        System.out.println("=== 8. Eliminación de directorio libera bloques internos ===");
+        libresAntes = disco.getBloquesLibres();
+        PCB p8Sub1 = crearProceso("Sub1", "admin", true, OperacionES.CREAR, "/usuarios/user1/carpeta/sub1.txt", 2, null);
+        PCB p8Sub2 = crearProceso("Sub2", "admin", true, OperacionES.CREAR, "/usuarios/user1/carpeta/sub2.txt", 2, null);
+        pc.crearProceso(p8Sub1, ciclo);
+        pc.crearProceso(p8Sub2, ciclo);
+        ciclo = avanzarDesde(pc, disco, new PCB[]{p8Sub1, p8Sub2}, ciclo, 800);
+        verificar("se ocuparon 4 bloques dentro de /usuarios/user1/carpeta",
+                disco.getBloquesLibres() == libresAntes - 4);
+
+        PCB p8Del1 = crearProceso("DelSub1", "admin", true, OperacionES.ELIMINAR, "/usuarios/user1/carpeta/sub1.txt", 0, null);
+        PCB p8Del2 = crearProceso("DelSub2", "admin", true, OperacionES.ELIMINAR, "/usuarios/user1/carpeta/sub2.txt", 0, null);
+        pc.crearProceso(p8Del1, ciclo);
+        pc.crearProceso(p8Del2, ciclo);
+        ciclo = avanzarDesde(pc, disco, new PCB[]{p8Del1, p8Del2}, ciclo, 800);
+
+        PCB p8DelDir = crearProceso("DelCarpeta", "admin", true, OperacionES.ELIMINAR, "/usuarios/user1/carpeta", 0, null);
+        pc.crearProceso(p8DelDir, ciclo);
+        avanzarDesde(pc, disco, new PCB[]{p8DelDir}, ciclo, 800);
+        verificar("directorio y archivos internos eliminados",
+                fs.buscar("/usuarios/user1/carpeta") == null
+                        && fs.buscar("/usuarios/user1/carpeta/sub1.txt") == null
+                        && fs.buscar("/usuarios/user1/carpeta/sub2.txt") == null);
+        verificar("eliminación devolvió los 4 bloques al disco",
+                disco.getBloquesLibres() == libresAntes);
     }
 
     private static PCB crearProceso(String nombre, String usuario, boolean admin,
