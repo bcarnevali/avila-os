@@ -9,20 +9,24 @@ public class PanelComputador extends JPanel {
 
     private final String titulo;
     private edu.unimet.avilaos.cluster.Computador pcAsociado;
-    /** true mientras el combo se ajusta por codigo, para no registrar un cambio de politica falso. */
     private boolean sincronizandoCombo = false;
+    private java.util.function.Consumer<TipoPolitica> controlPolitica;
 
-    // Componentes del Panel Superior (CPU, RAM y Selector de Política)
+    public void setControlPolitica(java.util.function.Consumer<TipoPolitica> control) {
+        this.controlPolitica = control;
+    }
+
     private final JLabel lblCpuEstado = new JLabel("CPU: Ociosa | Modo: USUARIO | PC: 0");
     private final JLabel lblPrioridadProceso = new JLabel("Prioridad: -");
     private final JLabel lblDeadlineProceso = new JLabel("Deadline: -");
     private final JProgressBar pbMemoria = new JProgressBar(0, 100);
     private final JComboBox<TipoPolitica> cbPolitica = new JComboBox<>(TipoPolitica.values());
 
-    // Tablas de Colas
     private final ModeloTablaPCB modeloNuevos = new ModeloTablaPCB();
     private final ModeloTablaPCB modeloListos = new ModeloTablaPCB();
     private final ModeloTablaPCB modeloBloqueados = new ModeloTablaPCB();
+    private final ModeloTablaPCB modeloListosSuspendidos = new ModeloTablaPCB();
+    private final ModeloTablaPCB modeloBloqueadosSuspendidos = new ModeloTablaPCB();
     private final ModeloTablaPCB modeloTerminados = new ModeloTablaPCB();
 
     public PanelComputador(String titulo) {
@@ -30,22 +34,15 @@ public class PanelComputador extends JPanel {
         setLayout(new BorderLayout(5, 5));
         setBorder(BorderFactory.createTitledBorder(titulo));
 
-        // 1. PANEL SUPERIOR (Información del Procesador y Memoria)
-        JPanel panelSuperior = new JPanel(new GridLayout(4, 1, 5, 5));
+        JPanel panelSuperior = new JPanel(new GridLayout(3, 1, 5, 5));
 
-        // Subpanel de Estado General CPU
-        JPanel panelInfoCpu = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 0));
+        JPanel panelInfoCpu = new JPanel(new FlowLayout(FlowLayout.LEFT, 12, 0));
         panelInfoCpu.add(lblCpuEstado);
+        panelInfoCpu.add(lblPrioridadProceso);
+        panelInfoCpu.add(lblDeadlineProceso);
 
-        // Subpanel de Detalle (Prioridad y Deadline)
-        JPanel panelDetalleCpu = new JPanel(new FlowLayout(FlowLayout.LEFT, 15, 0));
-        panelDetalleCpu.add(lblPrioridadProceso);
-        panelDetalleCpu.add(lblDeadlineProceso);
-
-        // Subpanel de Política con Enum TipoPolitica
-        JPanel panelPolitica = new JPanel(new FlowLayout(FlowLayout.LEFT, 5, 0));
-        panelPolitica.add(new JLabel("Política:"));
-        
+        JPanel panelPolitica = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
+        panelPolitica.add(new JLabel("Política de CPU:"));
         cbPolitica.addActionListener(e -> {
             TipoPolitica seleccionada = (TipoPolitica) cbPolitica.getSelectedItem();
             if (seleccionada != null && !sincronizandoCombo) {
@@ -54,22 +51,21 @@ public class PanelComputador extends JPanel {
         });
         panelPolitica.add(cbPolitica);
 
-        // Configuración Barra de Memoria
         pbMemoria.setStringPainted(true);
-        pbMemoria.setString("RAM: 0 MB / 0 MB");
+        pbMemoria.setString("RAM: 0 / 0");
 
         panelSuperior.add(panelInfoCpu);
-        panelSuperior.add(panelDetalleCpu);
         panelSuperior.add(pbMemoria);
         panelSuperior.add(panelPolitica);
 
         add(panelSuperior, BorderLayout.NORTH);
 
-        // 2. PANEL CENTRAL (Tablas de las Colas del Sistema)
-        JPanel panelColas = new JPanel(new GridLayout(2, 2, 5, 5));
+        JPanel panelColas = new JPanel(new GridLayout(3, 2, 6, 6));
         panelColas.add(crearSubPanelTabla("Nuevos", modeloNuevos));
         panelColas.add(crearSubPanelTabla("Listos", modeloListos));
         panelColas.add(crearSubPanelTabla("Bloqueados", modeloBloqueados));
+        panelColas.add(crearSubPanelTabla("Listo / Suspendido", modeloListosSuspendidos));
+        panelColas.add(crearSubPanelTabla("Bloqueado / Suspendido", modeloBloqueadosSuspendidos));
         panelColas.add(crearSubPanelTabla("Terminados", modeloTerminados));
 
         add(panelColas, BorderLayout.CENTER);
@@ -82,9 +78,10 @@ public class PanelComputador extends JPanel {
         return panel;
     }
 
-    /**
-     * Enlaza este panel con la instancia real del Computador backend.
-     */
+    public void actualizarPermisosVisuales(boolean esAdmin) {
+        cbPolitica.setEnabled(esAdmin);
+    }
+
     public void asociarComputador(edu.unimet.avilaos.cluster.Computador pc) {
         this.pcAsociado = pc;
         if (pc != null && pc.getPlanificador() != null) {
@@ -94,51 +91,50 @@ public class PanelComputador extends JPanel {
         }
     }
 
-    /**
-     * Actualiza la interfaz con el estado actual del Computador en cada ciclo de reloj.
-     */
     public void actualizarDatos(edu.unimet.avilaos.cluster.Computador pc) {
         if (pc == null) return;
-        
-        // Guardar referencia al computador si aún no la tenía
         if (this.pcAsociado == null) {
             asociarComputador(pc);
         }
 
-        // 1. Estado de CPU, Prioridad y Deadline
         PCB enEjecucion = pc.getCpu().getEnEjecucion();
         if (enEjecucion != null) {
-            lblCpuEstado.setText("CPU: " + enEjecucion.getNombre() 
-                               + " | Modo: " + pc.getCpu().getModo() 
-                               + " | PC: " + pc.getCpu().getPc());
+            lblCpuEstado.setText("CPU: " + enEjecucion.getNombre()
+                    + " | Modo: " + pc.getCpu().getModo()
+                    + " | PC: " + pc.getCpu().getPc());
             lblPrioridadProceso.setText("Prioridad: " + enEjecucion.getPrioridad());
             lblDeadlineProceso.setText("Deadline: " + enEjecucion.getDeadlineRestante() + " ciclos"
-                    + (enEjecucion.getPasoBuffer() > 0 ? "   (operación del SO sobre el buffer " + enEjecucion.getIdBuffer() + ")" : ""));
+                    + (enEjecucion.getPasoBuffer() > 0 ? " (buffer " + enEjecucion.getIdBuffer() + ")" : ""));
         } else {
             lblCpuEstado.setText("CPU: Ociosa | Modo: " + pc.getCpu().getModo() + " | PC: " + pc.getCpu().getPc());
             lblPrioridadProceso.setText("Prioridad: -");
             lblDeadlineProceso.setText("Deadline: -");
         }
 
-        // 2. Estado de la RAM
         int totalRam = pc.getMemoria().getCapacidad();
         int usadaRam = pc.getMemoria().getUsada();
         pbMemoria.setMaximum(totalRam);
         pbMemoria.setValue(usadaRam);
         pbMemoria.setString("RAM usada: " + usadaRam + " | libre: " + (totalRam - usadaRam) + " | total: " + totalRam);
 
-        // 3. Listas de PCBs por cola
         modeloNuevos.setDatos(pc.getPlanificador().getNuevos());
         modeloListos.setDatos(pc.getPlanificador().getListos());
         modeloBloqueados.setDatos(pc.getPlanificador().getBloqueados());
+        modeloListosSuspendidos.setDatos(pc.getPlanificador().getListosSuspendidos());
+        modeloBloqueadosSuspendidos.setDatos(pc.getPlanificador().getBloqueadosSuspendidos());
         modeloTerminados.setDatos(pc.getPlanificador().getTerminados());
     }
 
     private void cambiarPoliticaSimulacion(TipoPolitica nuevaPolitica) {
         if (pcAsociado == null || pcAsociado.getPlanificador() == null) return;
         if (pcAsociado.getPlanificador().getTipoPolitica() == nuevaPolitica) return;
-        long ciclo = pcAsociado.getCluster() != null ? pcAsociado.getCluster().getReloj().getCicloActual() : 0;
-        pcAsociado.getPlanificador().cambiarPolitica(nuevaPolitica, ciclo);
+        try {
+            if (controlPolitica == null) throw new IllegalStateException("Control de CPU no conectado.");
+            controlPolitica.accept(nuevaPolitica);
+        } catch (IllegalArgumentException | IllegalStateException ex) {
+            asociarComputador(pcAsociado);
+            JOptionPane.showMessageDialog(this, ex.getMessage(), "Operación no permitida", JOptionPane.WARNING_MESSAGE);
+        }
     }
 
     public String getTitulo() { return titulo; }
@@ -146,5 +142,7 @@ public class PanelComputador extends JPanel {
     public ModeloTablaPCB getModeloNuevos() { return modeloNuevos; }
     public ModeloTablaPCB getModeloListos() { return modeloListos; }
     public ModeloTablaPCB getModeloBloqueados() { return modeloBloqueados; }
+    public ModeloTablaPCB getModeloListosSuspendidos() { return modeloListosSuspendidos; }
+    public ModeloTablaPCB getModeloBloqueadosSuspendidos() { return modeloBloqueadosSuspendidos; }
     public ModeloTablaPCB getModeloTerminados() { return modeloTerminados; }
 }

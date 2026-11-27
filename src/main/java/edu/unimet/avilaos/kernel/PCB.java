@@ -2,6 +2,7 @@ package edu.unimet.avilaos.kernel;
 
 import edu.unimet.avilaos.modelo.enums.EstadoProceso;
 import edu.unimet.avilaos.modelo.enums.MotivoBloqueo;
+import edu.unimet.avilaos.modelo.enums.OperacionES;
 import edu.unimet.avilaos.modelo.enums.TipoProceso;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -56,6 +57,18 @@ public class PCB {
     private long cicloInicioBloqueo;
     /** Ciclos que lleva en la CPU en el quantum actual (Round Robin). */
     private int ciclosEnQuantum;
+    private int bloqueSwap = -1;
+
+    // Proceso de E/S sobre archivos (Proyecto 2)
+    private OperacionES operacionArchivo;
+    private String rutaArchivo;
+    private int bloquesArchivo;
+    /** true cuando ya envió su solicitud al disco. */
+    private boolean solicitudDiscoHecha;
+    
+    private String usuario = "admin";
+    private boolean administrador = true;
+    private String nuevoNombre;
 
     public PCB(String nombre, TipoProceso tipo, int prioridad, int memoriaRequerida,
                int instruccionesTotales, int deadline, int idComputador, long cicloLlegada) {
@@ -134,6 +147,27 @@ public class PCB {
 
     public boolean terminoInstrucciones() {
         return pc >= instruccionesTotales;
+    }
+    
+    public String getUsuario() {
+        return usuario;
+    }
+
+    public boolean isAdministrador() {
+        return administrador;
+    }
+
+    public void setUsuario(String usuario, boolean administrador) {
+        this.usuario = (usuario == null || usuario.isBlank()) ? "admin" : usuario;
+        this.administrador = administrador;
+    }
+
+    public String getNuevoNombre() {
+        return nuevoNombre;
+    }
+
+    public void setNuevoNombre(String nuevoNombre) {
+        this.nuevoNombre = nuevoNombre;
     }
 
     /** Un productor o consumidor termina al procesar sus elementos; el resto, al acabar sus instrucciones. */
@@ -231,6 +265,8 @@ public class PCB {
     public long getCicloPrimeraEjecucion() { return cicloPrimeraEjecucion; }
     public long getCiclosEsperaTotal() { return ciclosEsperaTotal; }
     public int getCiclosEnQuantum() { return ciclosEnQuantum; }
+    public int getBloqueSwap() { return bloqueSwap; }
+    public long getCicloBloqueo() { return cicloInicioBloqueo; }
 
     // ---------- Setters ----------
     public void setIdComputador(int idComputador) { this.idComputador = idComputador; }
@@ -239,8 +275,39 @@ public class PCB {
     public void setDeadlineRestante(int deadline) { this.deadlineRestante = deadline; }
     public void setPc(int pc) { this.pc = pc; }
     public void setMar(int mar) { this.mar = mar; }
+    public void setBloqueSwap(int bloqueSwap) { this.bloqueSwap = bloqueSwap; }
+    public void setCicloBloqueo(long cicloBloqueo) { this.cicloInicioBloqueo = cicloBloqueo; }
 
     /** Formato del log del enunciado: P3-H1 = proceso 3, su único hilo. */
+    /** Para procesos de E/S sobre archivos: la operación, la ruta y (al crear) el tamaño en bloques. */
+    public void configurarArchivo(OperacionES operacion, String ruta, int bloques) {
+        if (tipo != TipoProceso.ES_ARCHIVO) {
+            throw new IllegalStateException("Solo los procesos de E/S sobre archivos tienen operación y ruta");
+        }
+        if (operacion == null || operacion == OperacionES.SWAP_IN || operacion == OperacionES.SWAP_OUT) {
+            throw new IllegalArgumentException("La operación debe ser crear, leer, actualizar o eliminar");
+        }
+        if (ruta == null || !ruta.startsWith("/")) {
+            throw new IllegalArgumentException("La ruta debe empezar con /");
+        }
+        if (bloques < 0) {
+            throw new IllegalArgumentException("El tamaño en bloques no puede ser negativo");
+        }
+        this.operacionArchivo = operacion;
+        this.rutaArchivo = ruta;
+        this.bloquesArchivo = bloques;
+    }
+
+    public boolean esProcesoDeArchivo() {
+        return tipo == TipoProceso.ES_ARCHIVO;
+    }
+
+    public OperacionES getOperacionArchivo() { return operacionArchivo; }
+    public String getRutaArchivo() { return rutaArchivo; }
+    public int getBloquesArchivo() { return bloquesArchivo; }
+    public boolean isSolicitudDiscoHecha() { return solicitudDiscoHecha; }
+    public void setSolicitudDiscoHecha(boolean hecha) { this.solicitudDiscoHecha = hecha; }
+
     @Override
     public String toString() {
         return "P" + id + "-H1";
